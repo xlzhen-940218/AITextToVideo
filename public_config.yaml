@@ -1,0 +1,70 @@
+# ================= AI 视频工作流 - 公共配置 =================
+# 所有 Python 模块共享的全局配置
+# 修改此文件后需要重启应用生效
+
+# === ComfyUI 连接 ===
+comfyui:
+  server: "http://127.0.0.1:8188"
+  output_dir: "F:/ComfyUI/output"
+  input_dir: "F:/ComfyUI/input"
+
+# === 工作流文件 ===
+workflows:
+  text_to_image: "F:/ComfyUI/user/default/workflows/Text_to_Image.json"
+  image_to_video: "F:/ComfyUI/user/default/workflows/Image_to_Video.json"
+
+# === 输出目录（相对于项目根目录） ===
+output_dir: "storyboard_output"
+
+# === AI 对话参数 ===
+ai:
+  chunk_max_length: 3000     # 故事文本分块大小（字符数）
+  temperature: 0.3           # AI 温度
+  max_tokens: 4096           # AI 最大 Token 数
+
+# === 图片生成参数 ===
+image:
+  width: 1280
+  height: 720
+  steps: 8
+
+# === 视频生成参数 ===
+video:
+  width: 640
+  height: 320
+  fps: 16
+  duration: 5                # 默认视频长度（秒）
+
+# === Image_to_Video 模型参数 ===
+model:
+  clip: "umt5_xxl_fp8_e4m3fn_scaled.safetensors"
+  vae: "wan_2.1_vae.safetensors"
+  high_noise_unet: "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors"
+  low_noise_unet: "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors"
+  high_noise_lora: "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors"
+  low_noise_lora: "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors"
+  savevideo_prefix: "video/Wan2.2_i2v"
+
+# === Turbo 模式（4 步 LoRA 加速） ===
+turbo:
+  steps_high: 4
+  steps_low: 4
+  split_step: 2
+  cfg_high: 1.0
+  cfg_low: 1.0
+
+# === 非 Turbo 模式 ===
+non_turbo:
+  steps_high: 20
+  steps_low: 4
+  split_step: 10
+  cfg_high: 3.5
+  cfg_low: 1.0
+
+# === 其他参数 ===
+shift: 5.0                    # ModelSamplingSD3 shift 参数
+dubbing_max_seconds: 10       # 配音音频裁剪最大长度（秒）
+
+# === 默认值 ===
+defaults:
+  art_style: "迪士尼风格, 细腻光影, 高品质渲染, 4K"

@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📖 故事转 AI 视频</title>
+<style>
+  :root {
+    --bg: #0f0f1a;
+    --card: #1a1a2e;
+    --card2: #16213e;
+    --accent: #e94560;
+    --accent2: #0f3460;
+    --text: #eaeaea;
+    --text2: #a0a0b0;
+    --border: #2a2a40;
+    --success: #4ecca3;
+    --warning: #ffc107;
+    --radius: 12px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+  }
+  .container { max-width: 1500px; margin: 0 auto; padding: 16px 20px; }
+  @media (max-width: 768px) { .container { padding: 10px 12px; } }
+
+  /* Header */
+  header {
+    background: linear-gradient(135deg, var(--card), var(--card2));
+    padding: 18px 24px; border-radius: var(--radius); margin-bottom: 20px;
+    display: flex; justify-content: space-between; align-items: center;
+    border: 1px solid var(--border); flex-wrap: wrap; gap: 10px;
+  }
+  header h1 { font-size: 22px; letter-spacing: 0.5px; }
+  header h1 span { color: var(--accent); }
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+
+  .card {
+    background: var(--card); border-radius: var(--radius); padding: 20px;
+    border: 1px solid var(--border); margin-bottom: 16px;
+    transition: box-shadow 0.2s;
+  }
+  .card:hover { box-shadow: 0 2px 16px rgba(233,69,96,0.08); }
+  @media (max-width: 768px) { .card { padding: 14px; } }
+  .card-title {
+    font-size: 16px; font-weight: 700; margin-bottom: 14px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+
+  .main-panels { display: flex; gap: 20px; flex-direction: column; }
+  @media (min-width: 1024px) {
+    .main-panels { flex-direction: row; }
+    .left-panel { flex: 1; min-width: 0; }
+    .right-panel { width: 360px; flex-shrink: 0; }
+  }
+
+  .story-textarea {
+    width: 100%; min-height: 140px; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 12px;
+    font-size: 14px; line-height: 1.6; resize: vertical; font-family: inherit;
+    transition: border-color 0.2s;
+  }
+  .story-textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(233,69,96,0.15); }
+
+  .settings-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+  .settings-row .field { display: flex; flex-direction: column; gap: 4px; }
+  .settings-row label { font-size: 12px; color: var(--text2); font-weight: 500; }
+  .settings-row input, .settings-row select {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 10px; font-size: 13px; width: 85px;
+    transition: border-color 0.2s;
+  }
+  .settings-row input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(233,69,96,0.12); }
+  .settings-row input#art-style { width: 200px; }
+
+  /* Buttons */
+  .btn {
+    padding: 9px 18px; border: none; border-radius: 8px; cursor: pointer;
+    font-size: 14px; font-weight: 600; transition: all 0.2s;
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    user-select: none;
+  }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: #d63850; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(233,69,96,0.3); }
+  .btn-secondary { background: var(--accent2); color: var(--text); }
+  .btn-secondary:hover:not(:disabled) { background: #1a4a7a; transform: translateY(-1px); }
+  .btn-success { background: var(--success); color: #000; }
+  .btn-success:hover:not(:disabled) { background: #3dbb8e; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(78,204,163,0.3); }
+  .btn-small { padding: 5px 12px; font-size: 12px; border-radius: 6px; }
+  .btn-danger { background: #dc3545; color: #fff; }
+  .btn-danger:hover:not(:disabled) { background: #c82333; }
+
+  .btn-batch {
+    background: linear-gradient(135deg, #e94560, #ff6b35); color: #fff;
+    padding: 12px 28px; font-size: 16px; border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(233,69,96,0.35);
+    animation: pulse-glow 2s infinite;
+  }
+  .btn-batch:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 28px rgba(233,69,96,0.5); }
+  @keyframes pulse-glow { 0%,100%{box-shadow:0 4px 20px rgba(233,69,96,0.35)} 50%{box-shadow:0 4px 32px rgba(233,69,96,0.55)} }
+
+  /* Shot item */
+  .shot-item {
+    background: var(--card2); border-radius: 10px; padding: 16px;
+    border: 1px solid var(--border); position: relative; margin-bottom: 12px;
+    transition: border-color 0.2s;
+  }
+  .shot-item:hover { border-color: rgba(233,69,96,0.3); }
+  .shot-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px; flex-wrap: wrap; gap: 6px;
+  }
+  .shot-number {
+    background: linear-gradient(135deg, var(--accent), #ff6b6b);
+    color: #fff; border-radius: 50%;
+    width: 28px; height: 28px; display: flex; align-items: center;
+    justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0;
+  }
+  .shot-title { font-weight: 600; font-size: 15px; margin-left: 8px; flex: 1; }
+  .shot-characters { font-size: 12px; color: var(--text2); background: var(--bg); padding: 2px 8px; border-radius: 10px; }
+  .shot-desc { font-size: 13px; color: var(--text2); margin-bottom: 8px; line-height: 1.5; }
+  .shot-dubbing-text {
+    font-size: 13px; color: #ffc107; background: rgba(255,193,7,0.08);
+    border: 1px solid rgba(255,193,7,0.2); border-radius: 6px;
+    padding: 8px; margin-bottom: 8px; line-height: 1.5;
+    border-left: 3px solid var(--warning);
+  }
+  .shot-prompt {
+    font-size: 12px; color: var(--text2); background: var(--bg);
+    border-radius: 6px; padding: 8px; margin-bottom: 10px;
+    max-height: 60px; overflow-y: auto; font-family: 'Cascadia Code', 'JetBrains Mono', monospace;
+    white-space: pre-wrap; word-break: break-all;
+    border: 1px solid transparent; cursor: pointer; transition: border-color 0.2s;
+  }
+  .shot-prompt:hover { border-color: var(--accent); }
+  .shot-prompt.editable {
+    cursor: text; border-color: var(--accent); background: #1a1a30;
+    max-height: 120px;
+  }
+  .shot-actions {
+    display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 6px;
+  }
+  .shot-preview {
+    margin-top: 10px; display: flex; gap: 10px; align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .shot-preview img {
+    max-width: 180px; max-height: 135px; border-radius: 8px;
+    border: 1px solid var(--border); cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .shot-preview img:hover { transform: scale(1.03); box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+  .shot-preview video {
+    max-width: 240px; max-height: 170px; border-radius: 8px;
+    border: 1px solid var(--border); background: #000;
+  }
+
+  .badge { font-size: 11px; padding: 3px 8px; border-radius: 10px; font-weight: 600; }
+  .badge-success { background: var(--success); color: #000; }
+  .badge-warning { background: var(--warning); color: #000; }
+  .badge-info { background: var(--accent2); color: var(--text); }
+
+  .status-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px;
+  }
+  .status-dot.idle { background: var(--text2); }
+  .status-dot.running { background: var(--warning); animation: pulse 1s infinite; }
+  .status-dot.done { background: var(--success); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  #loading-overlay {
+    display: none; position: fixed; top:0; left:0; right:0; bottom:0;
+    background: rgba(0,0,0,0.65); z-index: 999;
+    justify-content: center; align-items: center; backdrop-filter: blur(2px);
+  }
+  #loading-overlay.active { display: flex; }
+  .spinner {
+    width: 44px; height: 44px; border: 4px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner-sm {
+    width: 14px; height: 14px; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    display: inline-block; vertical-align: middle;
+    animation: spin 0.8s linear infinite;
+  }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text2); }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px);
+    background: var(--card2); color: var(--text); padding: 12px 24px; border-radius: 10px;
+    border: 1px solid var(--border); z-index: 1000;
+    opacity: 0; transition: all 0.3s; max-width: 400px; text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  @media (max-width: 600px) {
+    header h1 { font-size: 18px; }
+    .settings-row input { width: 70px; }
+    .settings-row input#art-style { width: 150px; }
+    .shot-preview img { max-width: 140px; max-height: 105px; }
+    .shot-preview video { max-width: 180px; max-height: 130px; }
+    .btn-batch { font-size: 14px; padding: 10px 20px; width: 100%; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>📖 故事 → <span>AI 视频</span></h1>
+    <div class="header-actions">
+      <span id="api-status" style="font-size:13px;color:var(--text2);font-weight:500;">
+        <span class="status-dot idle"></span>API
+      </span>
+    </div>
+  </header>
+
+  <div class="main-panels">
+    <div class="left-panel">
+      <!-- Story -->
+      <div class="card">
+        <div class="card-title">📝 故事文本</div>
+        <textarea class="story-textarea" id="story-input" placeholder="在此输入或粘贴故事文本，然后点击「分析故事」或「⚡ 一键生成全部」开始制作 AI 视频..."></textarea>
+        <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="analyzeStory()">🔍 分析故事</button>
+          <button class="btn btn-batch" onclick="doBatchGenerate()">⚡ 一键生成全部</button>
+          <input type="file" id="file-input" accept=".txt" style="display:none" onchange="loadFile(event)">
+          <button class="btn btn-secondary" onclick="document.getElementById('file-input').click()">📂 打开文本文件</button>
+          <button class="btn btn-danger" onclick="clearAll()">🗑️ 清空全部</button>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div class="card">
+        <div class="card-title">⚙️ 生成参数设置</div>
+        <div class="settings-row" style="margin-bottom:10px;">
+          <div class="field"><label>🖼️ 图片宽度</label><input type="number" id="img-width" value="1280" min="512" max="2048" step="64"></div>
+          <div class="field"><label>🖼️ 图片高度</label><input type="number" id="img-height" value="720" min="512" max="2048" step="64"></div>
+          <div class="field"><label>🧮 采样步数</label><input type="number" id="steps" value="8" min="1" max="50"></div>
+          <div class="field"><label>🎨 美术风格</label><input type="text" id="art-style" value="迪士尼风格, 细腻光影, 高品质渲染, 4K"></div>
+        </div>
+        <div class="settings-row">
+          <div class="field"><label>🎬 视频宽度</label><input type="number" id="video-width" value="640" min="320" max="1920" step="64"></div>
+          <div class="field"><label>🎬 视频高度</label><input type="number" id="video-height" value="320" min="320" max="1080" step="64"></div>
+          <div class="field"><label>📽️ 帧率(FPS)</label><input type="number" id="fps" value="16" min="8" max="30"></div>
+          <button class="btn btn-success" onclick="saveSettings()">💾 保存参数</button>
+        </div>
+      </div>
+
+      <!-- Batch Progress -->
+      <div class="card" id="batch-progress-card" style="display:none;">
+        <div class="card-title">⚡ 一键生成进度</div>
+        <div id="batch-progress-content">
+          <div style="margin-bottom:10px;">
+            <span id="batch-phase" style="font-size:14px;font-weight:600;color:var(--warning);">准备中...</span>
+          </div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text2);">
+            <span>🖼️ 图片: <span id="batch-img">0</span>/<span id="batch-total">0</span></span>
+            <span>🎬 视频: <span id="batch-vid">0</span>/<span id="batch-total2">0</span></span>
+            <span>🎙️ 配音: <span id="batch-dub">0</span>/<span id="batch-total3">0</span></span>
+            <span>🔗 合并: <span id="batch-merge">0</span>/<span id="batch-total4">0</span></span>
+          </div>
+          <div style="margin-top:10px;background:var(--bg);border-radius:6px;overflow:hidden;height:8px;">
+            <div id="batch-bar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--accent),var(--warning),var(--success));transition:width 0.5s;border-radius:6px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shots -->
+      <div class="card">
+        <div class="card-title">
+          🎬 分镜列表
+          <span id="shot-count" style="font-size:13px;color:var(--text2);font-weight:400;"></span>
+        </div>
+        <div id="shots-list">
+          <div class="empty-state"><div class="icon">🎞️</div><p>点击「分析故事」生成分镜</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="right-panel">
+      <div class="card">
+        <div class="card-title">📊 生成状态总览</div>
+        <div id="progress-container">
+          <div class="empty-state"><div class="icon">📋</div><p>暂无任务</p></div>
+        </div>
+        <div id="final-merge-area" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+          <div style="font-size:14px;font-weight:600;margin-bottom:10px;color:var(--success);">🎬 完整视频</div>
+          <button class="btn btn-success" onclick="doMergeAll()" style="width:100%;justify-content:center;font-size:15px;padding:12px;">
+            🎬 生成完整 AI 视频
+          </button>
+          <div id="final-video-area" style="display:none;margin-top:12px;">
+            <video controls preload="metadata" style="width:100%;border-radius:10px;border:1px solid var(--border);background:#000;"></video>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">💡 操作指南</div>
+        <div style="font-size:13px;color:var(--text2);line-height:1.8;">
+          <p><strong>方法一：一键生成</strong></p>
+          <p>1. 输入故事 → 点击 ⚡ 一键生成全部</p>
+          <p>自动完成：分析→图片→视频→配音→合并</p>
+          <br>
+          <p><strong>方法二：分步操作</strong></p>
+          <p>1. 输入故事 → 🔍 分析故事</p>
+          <p>2. 编辑提示词（可选）</p>
+          <p>3. 🎨 生成图片 → 🎬 生成视频</p>
+          <p>4. 🎙️ 配音 → 🔗 合并音视频</p>
+          <p>5. 所有分镜合并 → 🎬 生成完整视频</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="loading-overlay"><div class="spinner"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const API_BASE = '/api';
+let pollTimer = null;
+let isAnalyzing = false;
+let batchPollTimer = null;
+let lastStatusJSON = '{}';
+let shotLoading = {};
+let shotDubbingMap = {};
+let shotMergedMap = {};
+
+function toast(msg, type='info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderColor = type === 'error' ? '#dc3545' : type === 'success' ? 'var(--success)' : 'var(--border)';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+function loading(show) {
+  document.getElementById('loading-overlay').classList.toggle('active', show);
+}
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+function loadFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    document.getElementById('story-input').value = e.target.result;
+    toast(`✅ 已加载文件: ${file.name}`, 'success');
+  };
+  reader.onerror = function() { toast('❌ 文件读取失败', 'error'); };
+  reader.readAsText(file, 'UTF-8');
+  event.target.value = '';
+}
+
+async function apiCall(method, path, body=null) {
+  const opts = { method, headers: {} };
+  if (body) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(`${API_BASE}${path}`, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || '请求失败');
+  return data;
+}
+
+async function saveSettings() {
+  try {
+    await apiCall('POST', '/settings', {
+      style: document.getElementById('art-style').value.trim(),
+      image_width: parseInt(document.getElementById('img-width').value),
+      image_height: parseInt(document.getElementById('img-height').value),
+      steps: parseInt(document.getElementById('steps').value),
+      video_width: parseInt(document.getElementById('video-width').value),
+      video_height: parseInt(document.getElementById('video-height').value),
+      fps: parseInt(document.getElementById('fps').value),
+    });
+    toast('✅ 设置已保存', 'success');
+  } catch (e) { toast('❌ 保存失败: ' + e.message, 'error'); }
+}
+
+async function loadSettings() {
+  try {
+    const data = await apiCall('GET', '/settings');
+    document.getElementById('img-width').value = data.image_width || 1280;
+    document.getElementById('img-height').value = data.image_height || 720;
+    document.getElementById('steps').value = data.steps || 8;
+    document.getElementById('video-width').value = data.video_width || 640;
+    document.getElementById('video-height').value = data.video_height || 320;
+    document.getElementById('fps').value = data.fps || 16;
+    if (data.style) document.getElementById('art-style').value = data.style;
+  } catch (e) { console.error('加载设置失败:', e); }
+}
+
+// ================= 分析故事 =================
+async function analyzeStory() {
+  const storyText = document.getElementById('story-input').value.trim();
+  if (!storyText) { toast('❌ 请输入故事文本', 'error'); return; }
+  const style = document.getElementById('art-style').value.trim();
+  isAnalyzing = true; loading(true);
+  try {
+    const result = await apiCall('POST', '/story/analyze', { text: storyText, style });
+    toast('✅ ' + result.message, 'success');
+    await refreshShots();
+    startPolling();
+  } catch (e) { toast('❌ 分析失败: ' + e.message, 'error'); }
+  finally { isAnalyzing = false; loading(false); }
+}
+
+// ================= 一键生成全部 =================
+async function doBatchGenerate() {
+  const storyText = document.getElementById('story-input').value.trim();
+  if (!storyText) { toast('❌ 请输入故事文本', 'error'); return; }
+  const style = document.getElementById('art-style').value.trim();
+  
+  // 显示进度卡
+  document.getElementById('batch-progress-card').style.display = 'block';
+  document.getElementById('batch-phase').textContent = '🚀 启动一键生成...';
+  document.getElementById('batch-bar').style.width = '2%';
+  
+  try {
+    await apiCall('POST', '/generate/batch', { text: storyText, style });
+    toast('⚡ 一键生成任务已启动！', 'success');
+    // 开始轮训进度
+    startBatchPolling();
+    startPolling();
+  } catch (e) {
+    toast('❌ 启动失败: ' + e.message, 'error');
+    document.getElementById('batch-progress-card').style.display = 'none';
+  }
+}
+
+function startBatchPolling() {
+  if (batchPollTimer) clearInterval(batchPollTimer);
+  batchPollTimer = setInterval(pollBatchStatus, 3000);
+  pollBatchStatus();
+}
+
+async function pollBatchStatus() {
+  try {
+    const s = await apiCall('GET', '/generate/batch-status');
+    const total = s.total_shots || 1;
+    document.getElementById('batch-total').textContent = total;
+    document.getElementById('batch-total2').textContent = total;
+    document.getElementById('batch-total3').textContent = total;
+    document.getElementById('batch-total4').textContent = total;
+    document.getElementById('batch-img').textContent = s.images_done;
+    document.getElementById('batch-vid').textContent = s.videos_done;
+    document.getElementById('batch-dub').textContent = s.dubbings_done;
+    document.getElementById('batch-merge').textContent = s.merges_done;
+    
+    const progress = ((s.images_done + s.videos_done + s.dubbings_done + s.merges_done) / (total * 4)) * 100;
+    document.getElementById('batch-bar').style.width = Math.min(progress, 99) + '%';
+    
+    // 更新阶段说明
+    if (s.merges_done > 0 && s.merges_done >= total) {
+      if (s.final_ready) {
+        document.getElementById('batch-phase').textContent = '🎉 全部完成！完整视频已生成！';
+        document.getElementById('batch-bar').style.width = '100%';
+        clearInterval(batchPollTimer);
+        batchPollTimer = null;
+        await refreshShots();
+        await updateFinalMergeArea();
+      } else {
+        document.getElementById('batch-phase').textContent = '🔗 正在合成最终完整视频...';
+      }
+    } else if (s.dubbings_done > 0) {
+      document.getElementById('batch-phase').textContent = '🔗 正在合并音视频...';
+    } else if (s.videos_done > 0) {
+      document.getElementById('batch-phase').textContent = '🎙️ 正在生成配音...';
+    } else if (s.images_done > 0) {
+      document.getElementById('batch-phase').textContent = '🎬 正在生成视频...';
+    } else {
+      document.getElementById('batch-phase').textContent = '🖼️ 正在分析故事并生成图片...';
+    }
+    
+    // 检查是否全部完成
+    if (s.final_ready) {
+      document.getElementById('batch-phase').textContent = '🎉🎉🎉 全部完成！';
+      document.getElementById('batch-bar').style.width = '100%';
+      clearInterval(batchPollTimer);
+      batchPollTimer = null;
+    }
+    
+    // 刷新分镜
+    await refreshShots();
+  } catch (e) {
+    console.error('轮训一键生成状态失败:', e);
+  }
+}
+
+// ================= 刷新分镜 =================
+async function refreshShots() {
+  try {
+    const data = await apiCall('GET', '/shots');
+    if (data.generated_dubbings) {
+      shotDubbingMap = Object.fromEntries(
+        Object.entries(data.generated_dubbings).map(([k, v]) => [parseInt(k), v])
+      );
+    }
+    if (data.merged_videos) {
+      shotMergedMap = Object.fromEntries(
+        Object.entries(data.merged_videos).map(([k, v]) => [parseInt(k), v])
+      );
+    }
+    renderShots(data.shots, data.generated_images || {}, data.generated_videos || {},
+                data.generated_dubbings || {}, data.merged_videos || {});
+    document.getElementById('shot-count').textContent = `（${data.shots.length} 个分镜）`;
+  } catch (e) { console.error('刷新分镜失败:', e); }
+}
+
+// ================= 渲染分镜 =================
+function renderShots(shots, images, videos, dubbings, merged) {
+  const container = document.getElementById('shots-list');
+  if (!shots || shots.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">🎞️</div><p>点击「分析故事」生成分镜</p></div>`;
+    return;
+  }
+  if (dubbings) {
+    Object.entries(dubbings).forEach(([k, v]) => { shotDubbingMap[parseInt(k)] = v; });
+  }
+  if (merged) {
+    Object.entries(merged).forEach(([k, v]) => { shotMergedMap[parseInt(k)] = v; });
+  }
+
+  container.innerHTML = shots.map(shot => {
+    const idx = shot.shot_index;
+    const hasImage = images[idx] && images[idx].length > 0;
+    const hasVideo = videos[idx] && videos[idx].length > 0;
+    const hasDubbing = shotDubbingMap[idx] ? true : false;
+    const hasMerged = shotMergedMap[idx] ? true : false;
+    const imgFiles = images[idx] || [];
+    const vidFiles = videos[idx] || [];
+    const isLoading = shotLoading[idx];
+    const dubbingText = shot.dubbing_text || '';
+
+    function btn(text, css, action, extraDisabled) {
+      const disabled = isLoading || extraDisabled ? 'disabled' : '';
+      const sp = isLoading ? '<span class="spinner-sm"></span>' : '';
+      let label = text;
+      if (isLoading) {
+        if (text.includes('生成') && shotLoading[idx] === 'image') label = '⏳ 图片中...';
+        else if (text.includes('视频') && shotLoading[idx] === 'video') label = '⏳ 视频中...';
+        else if (text === '🎙️ 配音' && shotLoading[idx] === 'dubbing') label = '⏳ 配音中...';
+        else if (text === '🔗 合并' && shotLoading[idx] === 'merge') label = '⏳ 合并中...';
+        else if (text.includes('🔄')) label = '⏳ 等待...';
+      }
+      return `<button class="btn ${css} btn-small" onclick="${action}" ${disabled}>${sp}${label}</button>`;
+    }
+
+    // 构建状态标签
+    let badges = '';
+    if (hasImage) badges += '<span class="badge badge-success" title="图片已生成">🖼️</span> ';
+    if (hasVideo) badges += '<span class="badge badge-success" title="视频已生成">🎬</span> ';
+    if (hasDubbing) badges += '<span class="badge badge-success" title="配音已生成">🎙️</span> ';
+    if (hasMerged) badges += '<span class="badge badge-success" title="已合并">🔗</span> ';
+    if (!badges) badges = '<span class="badge badge-warning">⏳ 待生成</span>';
+
+    return `
+    <div class="shot-item" id="shot-${idx}">
+      <div class="shot-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="shot-number">${idx}</div>
+          <div class="shot-title">${escapeHtml(shot.scene_title)}</div>
+        </div>
+        <div class="shot-characters">👥 ${(shot.characters||[]).join(', ')}</div>
+      </div>
+      <div class="shot-desc">📖 ${escapeHtml(shot.description || '')}</div>
+      ${dubbingText ? `<div class="shot-dubbing-text">🎙️ ${escapeHtml(dubbingText)}</div>` : ''}
+      <div class="shot-prompt" id="prompt-${idx}" onclick="editPrompt(${idx})" title="点击编辑提示词">${escapeHtml(shot.prompt)}</div>
+      <div class="shot-actions">
+        ${btn('🖼️ 生成图片', 'btn-primary', `doGenerateImage(${idx})`)}
+        ${btn('🎬 生成视频', 'btn-success', `doGenerateVideo(${idx})`, !hasImage)}
+        ${btn('🔄 图片', 'btn-secondary', `doRegenerateImage(${idx})`)}
+        ${btn('🔄 视频', 'btn-secondary', `doRegenerateVideo(${idx})`, !hasImage)}
+        ${btn('🎙️ 配音', 'btn-primary', `doShotDubbing(${idx})`)}
+        ${btn('🔗 合并', 'btn-success', `doMergeShot(${idx})`, !hasDubbing)}
+        <span id="status-${idx}">${badges}</span>
+      </div>
+      <div class="shot-preview" id="preview-${idx}">
+        ${imgFiles.map(f =>
+          `<img src="/api/outputs/image/${idx}/${f}" alt="分镜${idx}" onclick="window.open(this.src)" loading="lazy">`
+        ).join('')}
+        ${vidFiles.map(f =>
+          `<video controls preload="metadata"><source src="/api/outputs/video/${f}" type="video/mp4"></video>`
+        ).join('')}
+        ${hasDubbing && !hasMerged ? `<div style="margin-top:4px;width:100%;"><audio controls preload="metadata" style="max-width:240px;height:36px;" src="/api/outputs/video/${shotDubbingMap[idx]}"></audio></div>` : ''}
+        ${hasMerged ? `<div style="margin-top:4px;width:100%;"><video controls preload="metadata" style="max-width:280px;max-height:180px;border-radius:8px;border:1px solid var(--border);background:#000;" src="/api/outputs/video/${shotMergedMap[idx]}"></video></div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ================= 编辑提示词 =================
+function editPrompt(shotIndex) {
+  const el = document.getElementById(`prompt-${shotIndex}`);
+  const currentText = el.textContent;
+  const textarea = document.createElement('textarea');
+  textarea.value = currentText;
+  textarea.className = 'shot-prompt editable';
+  textarea.style.width = '100%';
+  textarea.style.minHeight = '60px';
+  textarea.style.fontFamily = 'monospace';
+  textarea.style.fontSize = '12px';
+  textarea.style.background = '#1a1a30';
+  textarea.style.color = '#eaeaea';
+  textarea.style.border = '1px solid #e94560';
+  textarea.style.borderRadius = '6px';
+  textarea.style.padding = '8px';
+  textarea.style.resize = 'vertical';
+  el.replaceWith(textarea);
+  textarea.focus();
+  textarea.addEventListener('blur', async () => {
+    const newValue = textarea.value.trim();
+    const div = document.createElement('div');
+    div.className = 'shot-prompt';
+    div.id = `prompt-${shotIndex}`;
+    div.textContent = newValue;
+    div.title = '点击编辑提示词';
+    div.onclick = () => editPrompt(shotIndex);
+    textarea.replaceWith(div);
+    try {
+      await apiCall('POST', '/shots/update', { shot_index: shotIndex, field: 'prompt', value: newValue });
+    } catch (e) { toast('❌ 保存失败: ' + e.message, 'error'); }
+  });
+  textarea.addEventListener('keydown', (e) => { if (e.ctrlKey && e.key === 'Enter') textarea.blur(); });
+}
+
+// ================= Action 包装器 =================
+
+async function doGenerateImage(shotIndex) {
+  if (shotLoading[shotIndex]) return;
+  shotLoading[shotIndex] = 'image';
+  await refreshShots();
+  const w = parseInt(document.getElementById('img-width').value) || 1280;
+  const h = parseInt(document.getElementById('img-height').value) || 720;
+  const s = parseInt(document.getElementById('steps').value) || 8;
+  try {
+    await apiCall('POST', '/generate/image', { shot_index: shotIndex, width: w, height: h, steps: s });
+    toast(`🖼️ 分镜 ${shotIndex} 图片已启动`, 'success');
+    startPolling();
+  } catch (e) { toast('❌ 启动失败: ' + e.message, 'error'); }
+  delete shotLoading[shotIndex];
+}
+async function doRegenerateImage(shotIndex) { await doGenerateImage(shotIndex); }
+
+async function doGenerateVideo(shotIndex) {
+  if (shotLoading[shotIndex]) return;
+  shotLoading[shotIndex] = 'video';
+  await refreshShots();
+  try {
+    await apiCall('POST', '/generate/video', { shot_index: shotIndex });
+    toast(`🎬 分镜 ${shotIndex} 视频已启动`, 'success');
+    startPolling();
+  } catch (e) { toast('❌ 启动失败: ' + e.message, 'error'); }
+  delete shotLoading[shotIndex];
+}
+async function doRegenerateVideo(shotIndex) { await doGenerateVideo(shotIndex); }
+
+async function doShotDubbing(shotIndex) {
+  if (shotLoading[shotIndex]) return;
+  shotLoading[shotIndex] = 'dubbing';
+  await refreshShots();
+  try {
+    const shotsResp = await apiCall('GET', '/shots');
+    const shot = shotsResp.shots.find(s => s.shot_index === shotIndex);
+    if (!shot) { toast('❌ 未找到分镜', 'error'); return; }
+    // 优先使用 dubbing_text，其次 description
+    const text = shot.dubbing_text || shot.description || shot.scene_title;
+    if (!text) { toast('❌ 没有配音文字', 'error'); return; }
+    await apiCall('POST', '/dubbing/shot', { shot_index: shotIndex, text });
+    const interval = setInterval(async () => {
+      try {
+        const s = await apiCall('GET', `/dubbing/status?shot_index=${shotIndex}`);
+        if (s.status === 'done' && s.file) {
+          clearInterval(interval);
+          shotDubbingMap[shotIndex] = s.file;
+          toast(`🎙️ 分镜 ${shotIndex} 配音就绪`, 'success');
+          delete shotLoading[shotIndex];
+          await refreshShots();
+        }
+      } catch(e) { /* ignore */ }
+    }, 3000);
+  } catch (e) {
+    toast('❌ 配音失败: ' + e.message, 'error');
+    delete shotLoading[shotIndex];
+    await refreshShots();
+  }
+}
+
+// ================= 合并操作 =================
+
+async function doMergeShot(shotIndex) {
+  if (shotLoading[shotIndex]) return;
+  shotLoading[shotIndex] = 'merge';
+  await refreshShots();
+  try {
+    await apiCall('POST', '/merge/shot', { shot_index: shotIndex });
+    const interval = setInterval(async () => {
+      try {
+        const s = await apiCall('GET', '/merge/status');
+        const key = String(shotIndex);
+        if (s[key] && s[key].has_merged && s[key].merged_file) {
+          clearInterval(interval);
+          shotMergedMap[shotIndex] = s[key].merged_file;
+          toast(`🔗 分镜 ${shotIndex} 合并完成`, 'success');
+          delete shotLoading[shotIndex];
+          await refreshShots();
+          await updateFinalMergeArea();
+        }
+      } catch(e) { /* ignore */ }
+    }, 3000);
+  } catch (e) {
+    toast('❌ 合并失败: ' + e.message, 'error');
+    delete shotLoading[shotIndex];
+    await refreshShots();
+  }
+}
+
+async function doMergeAll() {
+  const btn = document.querySelector('#final-merge-area button');
+  if (btn) btn.disabled = true;
+  toast('⏳ 正在合成完整视频，请稍候...', 'info');
+  try {
+    await apiCall('POST', '/merge/all');
+    const interval = setInterval(async () => {
+      try {
+        const s = await apiCall('GET', '/merge/status');
+        if (s.final) {
+          clearInterval(interval);
+          toast('🎉 完整 AI 视频生成完成！', 'success');
+          const area = document.getElementById('final-video-area');
+          area.style.display = 'block';
+          const video = area.querySelector('video');
+          video.src = `/api/outputs/video/${s.final}`;
+          video.play().catch(() => {});
+          if (btn) btn.disabled = false;
+          // 自动刷新右侧面板
+          await refreshShots();
+        }
+      } catch(e) { /* ignore */ }
+    }, 3000);
+  } catch (e) {
+    toast('❌ 合成失败: ' + e.message, 'error');
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function updateFinalMergeArea() {
+  try {
+    const s = await apiCall('GET', '/merge/status');
+    const total = Object.keys(s).filter(k => k !== 'final').length;
+    const merged = Object.values(s).filter(v => v.has_merged).length;
+    const area = document.getElementById('final-merge-area');
+    if (total > 0 && merged > 0) {
+      area.style.display = 'block';
+      const btn = area.querySelector('button');
+      if (btn) btn.textContent = `🎬 生成完整 AI 视频 (${merged}/${total} 个分镜已合并)`;
+      if (s.final) {
+        document.getElementById('final-video-area').style.display = 'block';
+        const video = document.querySelector('#final-video-area video');
+        video.src = `/api/outputs/video/${s.final}`;
+        video.style.display = 'block';
+        video.play().catch(() => {});
+      }
+    } else {
+      area.style.display = 'none';
+      document.getElementById('final-video-area').style.display = 'none';
+    }
+  } catch(e) { /* ignore */ }
+}
+
+// ================= 轮询 =================
+function startPolling() {
+  if (pollTimer) return;
+  pollTimer = setInterval(pollStatus, 2000);
+  pollStatus();
+}
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+async function pollStatus() {
+  try {
+    const data = await apiCall('GET', '/generate/status');
+    const newJSON = JSON.stringify(data);
+    if (newJSON !== lastStatusJSON) {
+      lastStatusJSON = newJSON;
+      const shotsData = await apiCall('GET', '/shots');
+      if (shotsData.generated_dubbings) {
+        Object.entries(shotsData.generated_dubbings).forEach(([k, v]) => { shotDubbingMap[parseInt(k)] = v; });
+      }
+      if (shotsData.merged_videos) {
+        Object.entries(shotsData.merged_videos).forEach(([k, v]) => { shotMergedMap[parseInt(k)] = v; });
+      }
+      renderShots(shotsData.shots, shotsData.generated_images || {}, shotsData.generated_videos || {},
+                  shotsData.generated_dubbings || {}, shotsData.merged_videos || {});
+      updateProgressBar(data);
+    }
+    // 检查是否所有分镜都完成了所有步骤（图片、视频、配音、合并）
+    const hasRunning = Object.values(data).some(s => !s.has_image || !s.has_video || !s.has_dubbing || !s.has_merged);
+    if (!hasRunning) stopPolling();
+
+  } catch (e) { console.error('轮询失败:', e); }
+}
+
+// ================= 进度条 =================
+function updateProgressBar(data) {
+  const entries = Object.entries(data);
+  const container = document.getElementById('progress-container');
+  if (entries.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>暂无任务</p></div>`;
+    return;
+  }
+  const total = entries.length;
+  const imgDone = entries.filter(([_, s]) => s.has_image).length;
+  const vidDone = entries.filter(([_, s]) => s.has_video).length;
+  const dubDone = entries.filter(([_, s]) => s.has_dubbing).length;
+  const mergedDone = entries.filter(([_, s]) => s.has_merged).length;
+
+  const existing = container.querySelector('.progress-stats');
+  if (existing) {
+    document.getElementById('progress-img').textContent = imgDone;
+    document.getElementById('progress-vid').textContent = vidDone;
+    document.getElementById('progress-dub').textContent = dubDone;
+    document.getElementById('progress-merge').textContent = mergedDone;
+    document.getElementById('progress-total').textContent = total;
+    const pct = total > 0 ? Math.round((imgDone + vidDone + dubDone + mergedDone) / (total * 4) * 100) : 0;
+    document.getElementById('progress-bar').style.width = pct + '%';
+    entries.forEach(([idx, s]) => {
+      const el = document.getElementById(`pstatus-${idx}`);
+      if (el) {
+        if (s.has_merged) el.textContent = '🔗 合并完成';
+        else if (s.has_dubbing) el.textContent = '🎙️ 配音就绪';
+        else if (s.has_video) el.textContent = '🎬 视频就绪';
+        else if (s.has_image) el.textContent = '🖼️ 图片就绪';
+        else el.textContent = '⏳ 待生成';
+      }
+    });
+  } else {
+    const pct = total > 0 ? Math.round((imgDone + vidDone + dubDone + mergedDone) / (total * 4) * 100) : 0;
+    container.innerHTML = `
+      <div class="progress-stats" style="margin-bottom:12px;font-size:14px;">
+        <span style="display:flex;gap:16px;flex-wrap:wrap;">
+          <span>🖼️ <span id="progress-img">${imgDone}</span>/<span id="progress-total">${total}</span></span>
+          <span>🎬 <span id="progress-vid">${vidDone}</span>/${total}</span>
+          <span>🎙️ <span id="progress-dub">${dubDone}</span>/${total}</span>
+          <span>🔗 <span id="progress-merge">${mergedDone}</span>/${total}</span>
+          <span style="color:var(--success);font-weight:700;">${pct}%</span>
+        </span>
+      </div>
+      <div style="background:var(--bg);border-radius:6px;overflow:hidden;height:8px;margin-bottom:12px;">
+        <div id="progress-bar" style="width:${pct}%;height:100%;background:linear-gradient(90deg,var(--accent),var(--warning),var(--success));transition:width 0.5s;border-radius:6px;"></div>
+      </div>
+      <div style="font-size:12px;color:var(--text2);max-height:260px;overflow-y:auto;">
+        ${entries.map(([idx, s]) => `
+          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);">
+            <span style="font-weight:500;">分镜 ${idx}</span>
+            <span id="pstatus-${idx}">${s.has_merged ? '🔗 合并完成' : s.has_dubbing ? '🎙️ 配音就绪' : s.has_video ? '🎬 视频就绪' : s.has_image ? '🖼️ 图片就绪' : '⏳ 待生成'}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+  updateFinalMergeArea();
+}
+
+// ================= 清空 =================
+function clearAll() {
+  document.getElementById('story-input').value = '';
+  document.getElementById('shots-list').innerHTML = `<div class="empty-state"><div class="icon">🎞️</div><p>点击「分析故事」生成分镜</p></div>`;
+  document.getElementById('progress-container').innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>暂无任务</p></div>`;
+  document.getElementById('shot-count').textContent = '';
+  document.getElementById('final-merge-area').style.display = 'none';
+  document.getElementById('final-video-area').style.display = 'none';
+  document.getElementById('batch-progress-card').style.display = 'none';
+  shotDubbingMap = {};
+  shotMergedMap = {};
+  shotLoading = {};
+  stopPolling();
+  if (batchPollTimer) { clearInterval(batchPollTimer); batchPollTimer = null; }
+}
+
+// ================= 初始化 =================
+loadSettings();
+checkHealth();
+setInterval(checkHealth, 30000);
+
+async function checkHealth() {
+  try {
+    const res = await fetch('/api/health');
+    document.getElementById('api-status').innerHTML =
+      `<span class="status-dot ${res.ok ? 'done' : 'idle'}"></span>${res.ok ? 'API 正常' : 'API 异常'}`;
+  } catch (e) {
+    document.getElementById('api-status').innerHTML = '<span class="status-dot idle"></span>API 离线';
+  }
+}
+</script>
+</body>
+</html>
