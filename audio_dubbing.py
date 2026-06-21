@@ -34,10 +34,19 @@ COMFYUI_SERVER = get("comfyui.server", "http://127.0.0.1:8188")
 COMFYUI_OUTPUT_DIR = get("comfyui.output_dir", r"F:\ComfyUI\output")
 OUTPUT_DIR = get("output_dir", "storyboard_output")
 
-# AI 对话提取参数
-CHUNK_MAX_LENGTH = 1500
-AI_TEMPERATURE = 0.1
-AI_MAX_TOKENS = 4000
+# AI 对话提取参数（使用公共配置）
+CHUNK_MAX_LENGTH = get("ai.dubbing_chunk_max_length", 1500)
+AI_TEMPERATURE = get("ai.dubbing_temperature", 0.1)
+AI_MAX_TOKENS = get("ai.dubbing_max_tokens", 4000)
+AI_API_BASE_URL = get("ai.api_base_url", "https://api.deepseek.com")
+
+# 配音模型参数
+DUBBING_MODEL_VERSION = get("audio_dubbing.model_version", "Fun-CosyVoice3-0.5B")
+DUBBING_DOWNLOAD_SOURCE = get("audio_dubbing.download_source", "HuggingFace")
+DUBBING_DEVICE = get("audio_dubbing.device", "auto")
+VOICE_DIR_MAN = get("audio_dubbing.voice_dir_man", "man")
+VOICE_DIR_GIRLS = get("audio_dubbing.voice_dir_girls", "girls")
+
 
 # ================= 声音库 =================
 RAW_MAN_FILES = [
@@ -318,13 +327,14 @@ def build_workflow_for_batch(batch_data, batch_index):
         "10": {
             "class_type": "FL_CosyVoice3_ModelLoader",
             "inputs": {
-                "model_version": "Fun-CosyVoice3-0.5B",
-                "download_source": "HuggingFace",
-                "device": "auto",
+                "model_version": DUBBING_MODEL_VERSION,
+                "download_source": DUBBING_DOWNLOAD_SOURCE,
+                "device": DUBBING_DEVICE,
                 "force_redownload": False,
                 "force_reload": False
             }
         },
+
         "20": {
             "class_type": "FL_CosyVoice3_Dialog",
             "inputs": {
@@ -480,7 +490,8 @@ def generate_dubbing(story_text=None, story_file="story.txt"):
         print("[错误] 未能加载 API Key")
         return None
 
-    client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+    client = OpenAI(api_key=api_key, base_url=AI_API_BASE_URL)
+
 
     # 3. 提取对话
     reset_voice_cache()
@@ -571,9 +582,9 @@ def generate_shot_dubbing(text, shot_index, narrator_voice_note="旁白"):
         "10": {
             "class_type": "FL_CosyVoice3_ModelLoader",
             "inputs": {
-                "model_version": "Fun-CosyVoice3-0.5B",
-                "download_source": "HuggingFace",
-                "device": "auto",
+                "model_version": DUBBING_MODEL_VERSION,
+                "download_source": DUBBING_DOWNLOAD_SOURCE,
+                "device": DUBBING_DEVICE,
                 "force_redownload": False,
                 "force_reload": False
             }
@@ -597,6 +608,7 @@ def generate_shot_dubbing(text, shot_index, narrator_voice_note="旁白"):
             }
         }
     }
+
     
     # 加载旁白音频
     prompt["100"] = {"class_type": "LoadAudio", "inputs": {"audio": narrator_file}}

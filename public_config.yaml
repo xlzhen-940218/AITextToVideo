@@ -18,25 +18,40 @@ output_dir: "storyboard_output"
 
 # === AI 对话参数 ===
 ai:
-  chunk_max_length: 3000     # 故事文本分块大小（字符数）
-  temperature: 0.3           # AI 温度
-  max_tokens: 4096           # AI 最大 Token 数
+  api_base_url: "https://api.deepseek.com"  # DeepSeek API 地址
+  chunk_max_length: 3000                     # 故事文本分块大小（字符数）
+  temperature: 0.3                           # AI 温度
+  max_tokens: 4096                           # AI 最大 Token 数
+  dubbing_chunk_max_length: 1500             # 配音文本分块大小（字符数）
+  dubbing_temperature: 0.1                   # 配音 AI 温度
+  dubbing_max_tokens: 4000                   # 配音 AI 最大 Token 数
 
-# === 图片生成参数 ===
+# === 长视频处理参数 ===
+video_processing:
+  dubbing_max_seconds: 10        # 配音音频裁剪最大长度（秒）
+
+# === 图片生成参数（Text_to_Image） ===
 image:
-  width: 1280
-  height: 720
+  width: 960
+  height: 540
   steps: 8
 
-# === 视频生成参数 ===
+# === 视频生成参数（Image_to_Video） ===
 video:
-  width: 640
-  height: 320
+  width: 960
+  height: 540
   fps: 16
-  duration: 5                # 默认视频长度（秒）
+  duration: 5                     # 默认视频长度（秒）
 
-# === Image_to_Video 模型参数 ===
-model:
+# === Text_to_Image 模型参数（Z-Image-Turbo） ===
+text_to_image_model:
+  unet: "z_image_turbo_bf16.safetensors"
+  clip: "qwen_3_4b.safetensors"
+  vae: "ae.safetensors"
+  saveimage_prefix: "z-image-turbo"
+
+# === Image_to_Video 模型参数（Wan2.2） ===
+image_to_video_model:
   clip: "umt5_xxl_fp8_e4m3fn_scaled.safetensors"
   vae: "wan_2.1_vae.safetensors"
   high_noise_unet: "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors"
@@ -44,6 +59,14 @@ model:
   high_noise_lora: "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors"
   low_noise_lora: "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors"
   savevideo_prefix: "video/Wan2.2_i2v"
+
+# === Audio_Dubbing 模型参数（CosyVoice） ===
+audio_dubbing:
+  model_version: "Fun-CosyVoice3-0.5B"
+  download_source: "HuggingFace"
+  device: "auto"
+  voice_dir_man: "man"
+  voice_dir_girls: "girls"
 
 # === Turbo 模式（4 步 LoRA 加速） ===
 turbo:
@@ -63,8 +86,9 @@ non_turbo:
 
 # === 其他参数 ===
 shift: 5.0                    # ModelSamplingSD3 shift 参数
-dubbing_max_seconds: 10       # 配音音频裁剪最大长度（秒）
 
 # === 默认值 ===
 defaults:
   art_style: "迪士尼风格, 细腻光影, 高品质渲染, 4K"
+  shots_count: 10             # 默认分镜数
+  negative_prompt: "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"

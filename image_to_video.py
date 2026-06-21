@@ -34,17 +34,18 @@ WORKFLOW_FILE = get("workflows.image_to_video", r"F:\ComfyUI\user\default\workfl
 COMFYUI_INPUT_DIR = get("comfyui.input_dir", r"F:\ComfyUI\input")
 COMFYUI_OUTPUT_DIR = get("comfyui.output_dir", r"F:\ComfyUI\output")
 
-# 模型参数
-DEFAULT_CLIP = get("model.clip", "umt5_xxl_fp8_e4m3fn_scaled.safetensors")
-DEFAULT_VAE = get("model.vae", "wan_2.1_vae.safetensors")
-DEFAULT_HIGH_NOISE_UNET = get("model.high_noise_unet", "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors")
-DEFAULT_LOW_NOISE_UNET = get("model.low_noise_unet", "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors")
-DEFAULT_HIGH_NOISE_LORA = get("model.high_noise_lora", "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors")
-DEFAULT_LOW_NOISE_LORA = get("model.low_noise_lora", "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors")
+# 模型参数（从 public_config.yaml 加载）
+DEFAULT_CLIP = get("image_to_video_model.clip", "umt5_xxl_fp8_e4m3fn_scaled.safetensors")
+DEFAULT_VAE = get("image_to_video_model.vae", "wan_2.1_vae.safetensors")
+DEFAULT_HIGH_NOISE_UNET = get("image_to_video_model.high_noise_unet", "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors")
+DEFAULT_LOW_NOISE_UNET = get("image_to_video_model.low_noise_unet", "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors")
+DEFAULT_HIGH_NOISE_LORA = get("image_to_video_model.high_noise_lora", "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors")
+DEFAULT_LOW_NOISE_LORA = get("image_to_video_model.low_noise_lora", "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors")
 
 # 默认视频参数
-DEFAULT_WIDTH = get("video.width", 640)
-DEFAULT_HEIGHT = get("video.height", 320)
+DEFAULT_WIDTH = get("video.width", 960)
+DEFAULT_HEIGHT = get("video.height", 540)
+
 DEFAULT_FPS = get("video.fps", 16)
 DEFAULT_DURATION = get("video.duration", 5)
 
@@ -63,7 +64,8 @@ DEFAULT_CFG_HIGH = get("non_turbo.cfg_high", 3.5)
 DEFAULT_CFG_LOW = get("non_turbo.cfg_low", 1.0)
 
 DEFAULT_SHIFT = get("shift", 5.0)
-SAVEVIDEO_PREFIX = get("model.savevideo_prefix", "video/Wan2.2_i2v")
+SAVEVIDEO_PREFIX = get("image_to_video_model.savevideo_prefix", "video/Wan2.2_i2v")
+
 
 
 # ================= 图片上传 =================

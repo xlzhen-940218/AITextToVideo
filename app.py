@@ -41,17 +41,62 @@ AI_TEMPERATURE = get("ai.temperature", 0.3)
 AI_MAX_TOKENS = get("ai.max_tokens", 4096)
 
 # 默认图片/视频参数
-DEFAULT_IMAGE_WIDTH = get("image.width", 1280)
-DEFAULT_IMAGE_HEIGHT = get("image.height", 720)
+DEFAULT_IMAGE_WIDTH = get("image.width", 960)
+DEFAULT_IMAGE_HEIGHT = get("image.height", 540)
 DEFAULT_STEPS = get("image.steps", 8)
-DEFAULT_VIDEO_WIDTH = get("video.width", 640)
-DEFAULT_VIDEO_HEIGHT = get("video.height", 320)
+DEFAULT_VIDEO_WIDTH = get("video.width", 960)
+DEFAULT_VIDEO_HEIGHT = get("video.height", 540)
 DEFAULT_FPS = get("video.fps", 16)
 DEFAULT_DURATION = get("video.duration", 5)
-DEFAULT_SHOTS_COUNT = 10
+DEFAULT_SHOTS_COUNT = get("defaults.shots_count", 10)
 
 # 配音时长控制（秒）
-DUBBING_MAX_SECONDS = get("dubbing_max_seconds", 10)
+DUBBING_MAX_SECONDS = get("video_processing.dubbing_max_seconds", 10)
+
+
+# ================= 艺术风格预设 =================
+ART_STYLES = [
+    {"value": "迪士尼风格, 细腻光影, 高品质渲染, 4K", "label": "🎨 迪士尼风格（默认）"},
+    # 一、传统美术与绘画流派
+    {"value": "Oil painting, impasto, rich colors, brush strokes, 4K", "label": "🖼️ 油画风格"},
+    {"value": "Watercolor painting, wet-on-wet, soft edges, transparent, splatter, 4K", "label": "🖼️ 水彩风格"},
+    {"value": "Charcoal sketch, line art, cross-hatching, detailed, 4K", "label": "🖼️ 素描/炭笔风格"},
+    {"value": "Pastel drawing, soft colors, chalk texture, gentle, 4K", "label": "🖼️ 粉彩/色粉风格"},
+    {"value": "Impressionism, visible brush strokes, focus on light and shadow, Monet style, 4K", "label": "🎨 印象派（莫奈风格）"},
+    {"value": "Surrealism, dreamlike, bizarre, Salvador Dali style, 4K", "label": "🎨 超现实主义（达利风格）"},
+    {"value": "Cubism, geometric shapes, multiple perspectives, Picasso style, 4K", "label": "🎨 立体主义（毕加索风格）"},
+    {"value": "Renaissance art, classical, chiaroscuro, religious, mythological, 4K", "label": "🎨 文艺复兴风格"},
+    {"value": "Ukiyo-e, Japanese traditional woodblock print, flat colors, bold outlines, 4K", "label": "🎨 浮世绘（日式版画）"},
+    {"value": "Traditional Chinese ink painting, sumi-e, negative space, elegant, Zen, 4K", "label": "🎨 中国水墨风格"},
+    # 二、3D、数字艺术与潮玩
+    {"value": "Art toy, blind box, Pop Mart style, clay material, matte finish, cute, 3D render, 4K", "label": "🧸 盲盒/潮玩风（泡泡玛特）"},
+    {"value": "Low poly, minimalist 3D, geometric, flat shading, 4K", "label": "🧊 低多边形（Low Poly）"},
+    {"value": "Voxel art, 3D pixel, Minecraft style, isometric, 4K", "label": "🧱 体素艺术（方块风）"},
+    {"value": "Claymation, stop motion, plasticine texture, Aardman style, 4K", "label": "🎭 黏土动画风格"},
+    {"value": "Unreal Engine 5 render, Octane render, Ray tracing, global illumination, 8k resolution, highly detailed", "label": "🎮 虚幻5/OC渲染（超写实）"},
+    {"value": "Concept art, epic composition, matte painting, fantasy environment, Greg Rutkowski style, 4K", "label": "🎬 概念艺术（史诗感）"},
+    # 三、摄影与影视写实
+    {"value": "Cinematic shot, movie still, dramatic lighting, anamorphic lens, widescreen, color grading, 4K", "label": "🎥 电影剧照风格"},
+    {"value": "Macro photography, extreme close-up, depth of field, sharp focus, 4K", "label": "📷 微距摄影"},
+    {"value": "Aerial view, drone photography, bird's-eye view, landscape, 4K", "label": "📷 航拍/上帝视角"},
+    {"value": "Long exposure photography, light trails, silky water, night, 4K", "label": "📷 长曝光摄影"},
+    {"value": "Polaroid, 35mm film, film grain, vintage, retro aesthetic, 4K", "label": "📷 胶片/复古风格"},
+    {"value": "Cyberpunk, neon lights, futuristic city, rainy street, blade runner style, high tech low life, 4K", "label": "🌃 赛博朋克"},
+    {"value": "Steampunk, Victorian era, brass, gears, steam-powered, goggles, 4K", "label": "⚙️ 蒸汽朋克"},
+    # 四、插画与二次元
+    {"value": "Anime style, manga, cel shading, Makoto Shinkai style, vibrant colors, 4K", "label": "🇯🇵 日系动漫（新海诚风）"},
+    {"value": "Studio Ghibli style, Hayao Miyazaki, whimsical, warm, hand-drawn, 4K", "label": "🇯🇵 吉卜力风格"},
+    {"value": "Comic book style, graphic novel, Marvel style, halftone dots, bold ink lines, 4K", "label": "🇺🇸 美漫/漫画风格"},
+    {"value": "Children's book illustration, whimsical, soft pastel colors, watercolor, cozy, 4K", "label": "📚 儿童绘本风格"},
+    {"value": "Vector art, flat design, minimalist, clean lines, corporate illustration, 4K", "label": "📐 扁平化矢量风格"},
+    {"value": "Vintage poster, art nouveau, Alphonse Mucha style, intricate details, floral borders, 4K", "label": "🖼️ 复古海报（慕夏风格）"},
+    # 五、现代设计与流行文化
+    {"value": "Pop art, Andy Warhol style, high saturation, repeated elements, comic aesthetic, 4K", "label": "🎨 波普艺术"},
+    {"value": "Minimalism, less is more, simple geometric shapes, vast negative space, clean, 4K", "label": "⬜ 极简主义"},
+    {"value": "Vaporwave, retrowave, glitch art, neon pink and cyan, VHS effect, digital distortion, 4K", "label": "🌴 蒸汽波/故障艺术"},
+    {"value": "Memphis design, 80s aesthetic, geometric shapes, squiggles, high contrast colors, 4K", "label": "💎 孟菲斯风格"},
+    {"value": "Isometric view, 2.5D, diorama, tiny world, cute, clean background, 4K", "label": "📐 等距视角（2.5D）"},
+]
 
 # ================= Flask 初始化 =================
 app = Flask(__name__)
@@ -60,7 +105,7 @@ CORS(app)
 # ================= 全局状态 =================
 project_state = {
     "shots": [],
-    "art_style": "迪士尼风格，细腻光影，高品质渲染，4K",
+    "art_style": ART_STYLES[0]["value"],
     "generated_images": {},
     "generated_videos": {},
     "merged_videos": {},
@@ -69,6 +114,7 @@ project_state = {
 }
 
 state_lock = threading.Lock()
+
 
 
 # ================= AI 工具函数 =================
@@ -564,7 +610,14 @@ def analyze_story():
     })
 
 
+@app.route('/api/styles', methods=['GET'])
+def get_styles():
+    """返回所有可用的艺术风格列表"""
+    return jsonify({"styles": ART_STYLES})
+
+
 @app.route('/api/shots', methods=['GET'])
+
 def get_shots():
     """获取当前分镜列表"""
     with state_lock:

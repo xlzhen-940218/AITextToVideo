@@ -29,6 +29,11 @@ COMFYUI_SERVER = get("comfyui.server", "http://127.0.0.1:8188")
 WORKFLOW_FILE = get("workflows.text_to_image", r"F:\ComfyUI\user\default\workflows\Text_to_Image.json")
 COMFYUI_OUTPUT_DIR = get("comfyui.output_dir", r"F:\ComfyUI\output")
 
+# 默认图片参数
+DEFAULT_WIDTH = get("image.width", 960)
+DEFAULT_HEIGHT = get("image.height", 540)
+DEFAULT_STEPS = get("image.steps", 8)
+
 
 # ================= 工作流转换引擎 =================
 def _parse_link_array(arr):
@@ -224,6 +229,14 @@ def generate_images(
     """
     主函数：加载工作流 → 设置参数 → 提交 → 等待 → 返回图片文件列表。
     """
+    # 使用默认值
+    if width is None:
+        width = DEFAULT_WIDTH
+    if height is None:
+        height = DEFAULT_HEIGHT
+    if steps is None:
+        steps = DEFAULT_STEPS
+
     # 1. 加载 workflow JSON
     if not os.path.exists(WORKFLOW_FILE):
         print(f"[错误] 找不到工作流文件: {WORKFLOW_FILE}")
@@ -294,10 +307,10 @@ if __name__ == "__main__":
         """,
     )
     parser.add_argument("prompt", type=str, help="图片描述提示词（必填）")
-    parser.add_argument("--width", type=int, default=None, help="图片宽度 (默认: 960)")
-    parser.add_argument("--height", type=int, default=None, help="图片高度 (默认: 544)")
+    parser.add_argument("--width", type=int, default=None, help=f"图片宽度 (默认: {DEFAULT_WIDTH})")
+    parser.add_argument("--height", type=int, default=None, help=f"图片高度 (默认: {DEFAULT_HEIGHT})")
     parser.add_argument("--seed", type=int, default=None, help="随机种子 (默认: 随机)")
-    parser.add_argument("--steps", type=int, default=None, help="采样步数 (默认: 8)")
+    parser.add_argument("--steps", type=int, default=None, help=f"采样步数 (默认: {DEFAULT_STEPS})")
 
     args = parser.parse_args()
 
