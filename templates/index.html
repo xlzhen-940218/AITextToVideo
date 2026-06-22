@@ -294,6 +294,20 @@
           <button class="btn btn-switch" onclick="toggleOrientation()" title="点击切换横屏/竖屏">🔄 横竖屏切换</button>
           <button class="btn btn-success" onclick="saveSettings()">💾 保存参数</button>
         </div>
+        <div class="settings-row" style="margin-top:10px;">
+          <div class="field" style="flex-direction:row;align-items:center;gap:8px;">
+            <label style="cursor:pointer;display:flex;align-items:center;gap:6px;user-select:none;">
+              <input type="checkbox" id="use-frame-connection" style="width:18px;height:18px;cursor:pointer;accent-color:var(--accent);">
+              <span style="font-size:13px;color:var(--text);">🔗 视频分镜首尾帧相连（使用上一分镜视频的最后一帧作为本分镜的输入图片，实现画面连续过渡）</span>
+            </label>
+          </div>
+        </div>
+        <div class="settings-row" style="margin-top:10px;">
+          <div class="field" style="flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap;">
+            <label style="font-size:12px;color:var(--text2);font-weight:500;">🎙️ 叙事人声</label>
+            <select id="narrator-voice" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;min-width:200px;"></select>
+          </div>
+        </div>
       </div>
 
       <!-- Generation Toolbar -->
@@ -476,6 +490,8 @@ async function saveSettings() {
       video_width: parseInt(document.getElementById('video-width').value),
       video_height: parseInt(document.getElementById('video-height').value),
       fps: parseInt(document.getElementById('fps').value),
+      use_frame_connection: document.getElementById('use-frame-connection').checked,
+      narrator_voice: document.getElementById('narrator-voice').value,
     });
     toast('✅ 设置已保存', 'success');
   } catch (e) { toast('❌ 保存失败: ' + e.message, 'error'); }
@@ -490,8 +506,26 @@ async function loadSettings() {
     document.getElementById('video-width').value = data.video_width || 960;
     document.getElementById('video-height').value = data.video_height || 540;
     document.getElementById('fps').value = data.fps || 16;
+    document.getElementById('use-frame-connection').checked = data.use_frame_connection === true;
+    if (data.narrator_voice && document.getElementById('narrator-voice').querySelector(`option[value="${data.narrator_voice}"]`)) {
+      document.getElementById('narrator-voice').value = data.narrator_voice;
+    }
   } catch (e) { console.error('加载设置失败:', e); }
 }
+
+// ================= 首尾帧相连开关自动保存 =================
+document.addEventListener('change', function(e) {
+  if (e.target && e.target.id === 'use-frame-connection') {
+    saveSettings();
+  }
+});
+
+// ================= 叙事人声切换自动保存 =================
+document.addEventListener('change', function(e) {
+  if (e.target && e.target.id === 'narrator-voice') {
+    saveSettings();
+  }
+});
 
 // ================= 分析故事 =================
 async function analyzeStory() {
@@ -1115,9 +1149,23 @@ function clearAll() {
   if (batchPollTimer) { clearInterval(batchPollTimer); batchPollTimer = null; }
 }
 
+// ================= 叙事人声列表加载 =================
+async function loadNarratorVoices() {
+  try {
+    const data = await apiCall('GET', '/narrator-voices');
+    const select = document.getElementById('narrator-voice');
+    select.innerHTML = data.voices.map(v =>
+      `<option value="${v.value}">${v.label}</option>`
+    ).join('');
+    const settings = await apiCall('GET', '/settings');
+    if (settings.narrator_voice) select.value = settings.narrator_voice;
+  } catch (e) { console.error('加载叙事人声列表失败:', e); }
+}
+
 // ================= 初始化 =================
 loadStyles();
 loadSettings();
+loadNarratorVoices();
 checkHealth();
 setInterval(checkHealth, 30000);
 

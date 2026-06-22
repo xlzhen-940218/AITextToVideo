@@ -35,6 +35,26 @@ INPUT_STORY_FILE = "story.txt"              # 输入故事文件
 OUTPUT_DIR = get("output_dir", "storyboard_output")
 COMFYUI_OUTPUT_DIR = get("comfyui.output_dir", r"F:\ComfyUI\output")
 
+# ================= 叙事人声音库（用于前端下拉菜单） =================
+NARRATOR_VOICES = [
+    {"value": "温柔女声", "label": "🎙️ 温柔女声（默认）"},
+    {"value": "知性旁白女", "label": "🎙️ 知性旁白女"},
+    {"value": "沉稳权威女", "label": "🎙️ 沉稳权威女"},
+    {"value": "温暖磁性女", "label": "🎙️ 温暖磁性女"},
+    {"value": "清甜推销女", "label": "🎙️ 清甜推销女"},
+    {"value": "欢脱元气女", "label": "🎙️ 欢脱元气女"},
+    {"value": "嗲甜台湾女", "label": "🎙️ 嗲甜台湾女"},
+    {"value": "浪漫风情女", "label": "🎙️ 浪漫风情女"},
+    {"value": "豪放可爱女", "label": "🎙️ 豪放可爱女"},
+    {"value": "暖心甜美女", "label": "🎙️ 暖心甜美女"},
+    {"value": "阳光自然女", "label": "🎙️ 阳光自然女"},
+    {"value": "沉稳男声", "label": "🎤 沉稳男声"},
+    {"value": "温暖元气男", "label": "🎤 温暖元气男"},
+    {"value": "睿智青年男", "label": "🎤 睿智青年男"},
+    {"value": "清朗明快男", "label": "🎤 清朗明快男"},
+    {"value": "阳光大男孩", "label": "🎤 阳光大男孩"},
+]
+
 # AI 模型参数
 CHUNK_MAX_LENGTH = get("ai.chunk_max_length", 3000)
 AI_TEMPERATURE = get("ai.temperature", 0.3)
@@ -294,7 +314,7 @@ def run_generate_image(shot_index, prompt_text, width, height, steps, seed=None)
 
 
 def run_generate_video(shot_index, image_filename, prompt_text, seed=None):
-    """后台线程：调用 image_to_video.py 生成视频"""
+    """后台线程：调用 image_to_video.py 生成视频（普通模式，每分镜单独用其图片生成）"""
     from image_to_video import generate_video
     try:
         if seed is None:
@@ -306,6 +326,97 @@ def run_generate_video(shot_index, image_filename, prompt_text, seed=None):
             v_width = project_state.get("video_width", DEFAULT_VIDEO_WIDTH)
             v_height = project_state.get("video_height", DEFAULT_VIDEO_HEIGHT)
             v_fps = project_state.get("fps", DEFAULT_FPS)
+        video_files = generate_video(
+            image_path=image_path, prompt_text=prompt_text, seed=seed,
+            width=v_width, height=v_height, duration=DEFAULT_DURATION, fps=v_fps, enable_turbo=True,
+        )
+        with state_lock:
+            if video_files:
+                output_files = []
+                for vf in video_files:
+                    src = os.path.join(COMFYUI_OUTPUT_DIR, vf)
+                    base_name = os.path.basename(vf)
+                    new_name = f"shot_{shot_index:02d}_video_{base_name}"
+                    dst = os.path.join(OUTPUT_DIR, new_name)
+                    try:
+                        if os.path.exists(src):
+                            shutil.copy2(src, dst)
+                            output_files.append(new_name)
+                        else:
+                            output_files.append(vf)
+                    except Exception:
+                        output_files.append(vf)
+                project_state["generated_videos"][shot_index] = output_files
+    except Exception as e:
+        print(f"[错误] 生成视频失败 (分镜 {shot_index}): {e}")
+
+
+def run_generate_video_with_frame_connection(shot_index, image_filename, prompt_text, seed=None):
+    """
+    视频分镜首尾帧相连模式：生成视频时使用上一个视频的尾帧作为输入图片。
+    
+    对于第一个分镜（shot_index == 1 或最小分镜号），使用生成的图片生成视频。
+    对于后续分镜，先找上一个分镜的视频文件，提取其最后一帧作为本分镜的输入图片，
+    然后用该帧图片生成视频，实现画面连续过渡。
+    """
+    from image_to_video import generate_video
+    try:
+        if seed is None:
+            seed = random.randint(1, 99999999999)
+
+        with state_lock:
+            v_width = project_state.get("video_width", DEFAULT_VIDEO_WIDTH)
+            v_height = project_state.get("video_height", DEFAULT_VIDEO_HEIGHT)
+            v_fps = project_state.get("fps", DEFAULT_FPS)
+            shots = project_state["shots"]
+
+        # 获取所有分镜号并排序
+        shot_indices = sorted([s["shot_index"] for s in shots])
+        if not shot_indices:
+            print(f"[错误] 没有分镜数据")
+            return
+
+        # 判断当前分镜是否是第一个
+        current_idx = shot_indices.index(shot_index) if shot_index in shot_indices else -1
+        is_first_shot = (current_idx <= 0)
+
+        if is_first_shot:
+            # 第一个分镜：使用 AI 生成的图片作为输入
+            image_path = os.path.join(OUTPUT_DIR, image_filename)
+            if not os.path.exists(image_path):
+                image_path = os.path.join(COMFYUI_OUTPUT_DIR, image_filename)
+            print(f"  🎬 分镜 {shot_index}（首镜）：使用原始图片")
+        else:
+            # 后续分镜：找上一个分镜的视频，提取尾帧作为输入
+            prev_shot_index = shot_indices[current_idx - 1]
+            with state_lock:
+                prev_videos = project_state.get("generated_videos", {}).get(prev_shot_index, [])
+            
+            if prev_videos:
+                prev_video_path = os.path.join(OUTPUT_DIR, prev_videos[0])
+                if not os.path.exists(prev_video_path):
+                    prev_video_path = os.path.join(COMFYUI_OUTPUT_DIR, prev_videos[0])
+                
+                # 提取尾帧
+                frame_filename = f"shot_{shot_index:02d}_frame_connection.png"
+                frame_path = os.path.join(OUTPUT_DIR, frame_filename)
+                extracted = extract_video_last_frame(prev_video_path, frame_path)
+                if extracted:
+                    image_path = frame_path
+                    print(f"  🎬 分镜 {shot_index}：使用分镜 {prev_shot_index} 视频尾帧 → {frame_filename}")
+                else:
+                    # 提取失败，回退到原始图片
+                    image_path = os.path.join(OUTPUT_DIR, image_filename)
+                    if not os.path.exists(image_path):
+                        image_path = os.path.join(COMFYUI_OUTPUT_DIR, image_filename)
+                    print(f"  ⚠️ 分镜 {shot_index}：尾帧提取失败，回退到原始图片")
+            else:
+                # 上一个分镜没有视频，使用原始图片
+                image_path = os.path.join(OUTPUT_DIR, image_filename)
+                if not os.path.exists(image_path):
+                    image_path = os.path.join(COMFYUI_OUTPUT_DIR, image_filename)
+                print(f"  ⚠️ 分镜 {shot_index}：上一个分镜无视频，使用原始图片")
+
         video_files = generate_video(
             image_path=image_path, prompt_text=prompt_text, seed=seed,
             width=v_width, height=v_height, duration=DEFAULT_DURATION, fps=v_fps, enable_turbo=True,
@@ -344,6 +455,41 @@ def get_media_duration(media_path):
         return float(result.stdout.strip()) if result.stdout.strip() else 0
     except Exception:
         return 0
+
+
+def extract_video_last_frame(video_path, output_path):
+    """
+    从视频中提取最后一帧作为图片。
+    
+    使用 FFmpeg 定位到视频末尾附近，提取一帧保存为 PNG。
+    返回 output_path 成功，None 失败。
+    """
+    if not os.path.exists(video_path):
+        print(f"[错误] 视频文件不存在: {video_path}")
+        return None
+    try:
+        # 先获取视频时长，然后定位到末尾附近
+        duration = get_media_duration(video_path)
+        if duration <= 0:
+            duration = 5  # fallback
+        seek_time = max(0, duration - 0.1)
+        cmd = [
+            'ffmpeg', '-y',
+            '-ss', str(seek_time),
+            '-i', video_path,
+            '-frames:v', '1',
+            '-q:v', '2',
+            output_path
+        ]
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        if os.path.exists(output_path):
+            print(f"  📸 已提取视频尾帧: {output_path}")
+            return output_path
+        else:
+            print(f"  ⚠️ 提取尾帧失败，输出文件不存在")
+    except Exception as e:
+        print(f"[错误] 提取视频尾帧失败: {e}")
+    return None
 
 
 def merge_shot_media(shot_index):
@@ -615,6 +761,11 @@ def get_styles():
     """返回所有可用的艺术风格列表"""
     return jsonify({"styles": ART_STYLES})
 
+@app.route('/api/narrator-voices', methods=['GET'])
+def get_narrator_voices():
+    """返回所有可用的叙事人声音列表"""
+    return jsonify({"voices": NARRATOR_VOICES})
+
 
 @app.route('/api/shots', methods=['GET'])
 
@@ -691,22 +842,39 @@ def generate_video():
     if not shot_index:
         return jsonify({"error": "缺少 shot_index"}), 400
     with state_lock:
-        if shot_index not in project_state["generated_images"]:
-            return jsonify({"error": f"分镜 {shot_index} 尚未生成图片"}), 400
-        image_files = project_state["generated_images"].get(shot_index, [])
         shot = next((s for s in project_state["shots"] if s["shot_index"] == shot_index), None)
-    if not image_files:
-        return jsonify({"error": f"分镜 {shot_index} 无图片文件"}), 400
+        use_frame_connection = project_state.get("use_frame_connection", False)
+        image_files = project_state["generated_images"].get(shot_index, [])
+        
     if not shot:
         return jsonify({"error": f"未找到分镜 {shot_index}"}), 404
-    image_filename = image_files[0]
+
+    # 首尾帧相连模式：非首镜不需要图片文件（使用上一分镜视频尾帧）
+    if not use_frame_connection:
+        if shot_index not in project_state["generated_images"]:
+            return jsonify({"error": f"分镜 {shot_index} 尚未生成图片"}), 400
+        if not image_files:
+            return jsonify({"error": f"分镜 {shot_index} 无图片文件"}), 400
+        image_filename = image_files[0]
+    else:
+        image_filename = image_files[0] if image_files else ""
+
     prompt_text = shot.get("prompt", "")
-    thread = threading.Thread(
-        target=run_generate_video,
-        args=(shot_index, image_filename, prompt_text, seed), daemon=True
-    )
+    # 根据是否启用首尾帧相连模式选择不同的生成函数
+    if use_frame_connection:
+        thread = threading.Thread(
+            target=run_generate_video_with_frame_connection,
+            args=(shot_index, image_filename, prompt_text, seed), daemon=True
+        )
+        mode_msg = "（首尾帧相连模式）"
+    else:
+        thread = threading.Thread(
+            target=run_generate_video,
+            args=(shot_index, image_filename, prompt_text, seed), daemon=True
+        )
+        mode_msg = ""
     thread.start()
-    return jsonify({"message": f"分镜 {shot_index} 视频生成任务已启动", "shot_index": shot_index, "image": image_filename})
+    return jsonify({"message": f"分镜 {shot_index} 视频生成任务已启动{mode_msg}", "shot_index": shot_index, "image": image_filename})
 
 
 @app.route('/api/generate/status', methods=['GET'])
@@ -774,7 +942,9 @@ def generate_shot_dubbing_api():
 def _run_shot_dubbing(shot_index, text):
     from audio_dubbing import generate_shot_dubbing
     try:
-        mp3_file = generate_shot_dubbing(text=text, shot_index=shot_index)
+        with state_lock:
+            narrator_voice = project_state.get("narrator_voice", "温柔女声")
+        mp3_file = generate_shot_dubbing(text=text, shot_index=shot_index, narrator_voice=narrator_voice)
         if mp3_file:
             with state_lock:
                 if "shot_dubbing" not in project_state:
@@ -952,10 +1122,25 @@ def _run_batch_generate(story_text, art_style, target_shots=None):
     # ---- 步骤 2: 生成所有分镜的图片 ----
     print("\n" + "=" * 50)
     print("【步骤 2/5】生成所有分镜的图片...")
+    
+    with state_lock:
+        use_frame_connection = project_state.get("use_frame_connection", False)
+
     from text_to_image import generate_images
 
     for idx, shot_data in enumerate(all_shots, 1):
         si = shot_data["shot_index"]
+
+        # 首尾帧相连模式：只生成第一个分镜的图片，后续分镜使用上一分镜视频尾帧
+        if use_frame_connection:
+            if idx > 1:
+                print(f"  🖼️ 分镜 {si} ({idx}/{len(all_shots)})... ⏭️ 首尾帧相连模式跳过（仅首镜需图片）")
+                # 为后续分镜创建占位空列表，以便视频生成步骤能识别
+                with state_lock:
+                    if si not in project_state["generated_images"]:
+                        project_state["generated_images"][si] = []
+                continue
+
         print(f"  🖼️ 分镜 {si} ({idx}/{len(all_shots)})...", end="", flush=True)
 
         prompt_text = shot_data.get("prompt", "")
@@ -987,6 +1172,10 @@ def _run_batch_generate(story_text, art_style, target_shots=None):
     print("【步骤 3/5】生成所有分镜的视频...")
     from image_to_video import generate_video
 
+    # use_frame_connection 已在步骤2中获取，这里直接复用
+    # 获取所有分镜号并排序
+    shot_indices = sorted([s["shot_index"] for s in all_shots])
+
     for idx, shot_data in enumerate(all_shots, 1):
         si = shot_data["shot_index"]
         image_files = project_state.get("generated_images", {}).get(si, [])
@@ -997,17 +1186,52 @@ def _run_batch_generate(story_text, art_style, target_shots=None):
 
         prompt_text = shot_data.get("prompt", "")
         image_filename = image_files[0]
-        image_path = os.path.join(OUTPUT_DIR, image_filename)
         v_width = project_state.get("video_width", DEFAULT_VIDEO_WIDTH)
         v_height = project_state.get("video_height", DEFAULT_VIDEO_HEIGHT)
         v_fps = project_state.get("fps", DEFAULT_FPS)
         v_seed = random.randint(1, 99999999999)
 
         try:
-            video_files = generate_video(
-                image_path=image_path, prompt_text=prompt_text, seed=v_seed,
-                width=v_width, height=v_height, duration=DEFAULT_DURATION, fps=v_fps, enable_turbo=True,
-            )
+            if use_frame_connection:
+                # 首尾帧相连模式
+                current_idx = shot_indices.index(si) if si in shot_indices else -1
+                is_first_shot = (current_idx <= 0)
+
+                if is_first_shot:
+                    # 第一个分镜：使用原始图片
+                    image_path = os.path.join(OUTPUT_DIR, image_filename)
+                    print(f"  🎬 分镜 {si}（首镜）：使用原始图片")
+                else:
+                    # 后续分镜：提取上一个视频的尾帧
+                    prev_shot_index = shot_indices[current_idx - 1]
+                    prev_videos = project_state.get("generated_videos", {}).get(prev_shot_index, [])
+                    if prev_videos:
+                        prev_video_path = os.path.join(OUTPUT_DIR, prev_videos[0])
+                        frame_filename = f"shot_{si:02d}_frame_connection.png"
+                        frame_path = os.path.join(OUTPUT_DIR, frame_filename)
+                        extracted = extract_video_last_frame(prev_video_path, frame_path)
+                        if extracted:
+                            image_path = frame_path
+                            print(f"  🎬 分镜 {si}：使用分镜 {prev_shot_index} 视频尾帧")
+                        else:
+                            image_path = os.path.join(OUTPUT_DIR, image_filename)
+                            print(f"  ⚠️ 分镜 {si}：尾帧提取失败，回退到原始图片")
+                    else:
+                        image_path = os.path.join(OUTPUT_DIR, image_filename)
+                        print(f"  ⚠️ 分镜 {si}：上一个分镜无视频，使用原始图片")
+
+                video_files = generate_video(
+                    image_path=image_path, prompt_text=prompt_text, seed=v_seed,
+                    width=v_width, height=v_height, duration=DEFAULT_DURATION, fps=v_fps, enable_turbo=True,
+                )
+            else:
+                # 普通模式：每个分镜使用其本身的图片
+                image_path = os.path.join(OUTPUT_DIR, image_filename)
+                video_files = generate_video(
+                    image_path=image_path, prompt_text=prompt_text, seed=v_seed,
+                    width=v_width, height=v_height, duration=DEFAULT_DURATION, fps=v_fps, enable_turbo=True,
+                )
+
             if video_files:
                 vf_output = []
                 for vf in video_files:
@@ -1036,6 +1260,9 @@ def _run_batch_generate(story_text, art_style, target_shots=None):
     print("【步骤 4/5】生成所有分镜的配音...")
     from audio_dubbing import generate_shot_dubbing
 
+    with state_lock:
+        narrator_voice = project_state.get("narrator_voice", "温柔女声")
+
     for idx, shot_data in enumerate(all_shots, 1):
         si = shot_data["shot_index"]
         print(f"  🎙️ 分镜 {si} ({idx}/{len(all_shots)})...", end="", flush=True)
@@ -1047,7 +1274,7 @@ def _run_batch_generate(story_text, art_style, target_shots=None):
             continue
 
         try:
-            mp3_file = generate_shot_dubbing(text=dubbing_text, shot_index=si)
+            mp3_file = generate_shot_dubbing(text=dubbing_text, shot_index=si, narrator_voice=narrator_voice)
             if mp3_file:
                 with state_lock:
                     if "shot_dubbing" not in project_state:
@@ -1157,6 +1384,8 @@ def settings():
                 "fps": project_state.get("fps", DEFAULT_FPS),
                 "style": project_state.get("art_style", ""),
                 "shots": project_state.get("shots_count", DEFAULT_SHOTS_COUNT),
+                "use_frame_connection": project_state.get("use_frame_connection", False),
+                "narrator_voice": project_state.get("narrator_voice", "温柔女声"),
             })
     data = request.get_json(silent=True) or {}
     with state_lock:
@@ -1164,7 +1393,8 @@ def settings():
             sn = {"image_width": "image_width", "image_height": "image_height",
                   "video_width": "video_width", "video_height": "video_height",
                   "duration": "duration", "fps": "fps", "style": "art_style",
-                  "steps": "steps", "shots": "shots_count"}
+                  "steps": "steps", "shots": "shots_count", "use_frame_connection": "use_frame_connection",
+                  "narrator_voice": "narrator_voice"}
             if k in sn:
                 project_state[sn[k]] = v
     return jsonify({"message": "设置已保存"})

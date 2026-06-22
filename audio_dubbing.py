@@ -551,33 +551,79 @@ def generate_dubbing(story_text=None, story_file="story.txt"):
         return None
 
 
-def generate_shot_dubbing(text, shot_index, narrator_voice_note="旁白"):
+# ================= 叙事人声映射表 =================
+# 将前端选择的叙事人声名称映射到具体的声线文件
+NARRATOR_VOICE_MAP = {
+    "温柔女声": "longyingtian_温柔甜美女.mp3",
+    "知性旁白女": "longbaizhi_睿气旁白女.mp3",
+    "沉稳权威女": "longxiaoxia_v2_沉稳权威女.mp3",
+    "温暖磁性女": "longyue_v2_温暖磁性女.mp3",
+    "清甜推销女": "longyingxiao_清甜推销女.mp3",
+    "欢脱元气女": "longanhuan_欢脱元气女.mp3",
+    "嗲甜台湾女": "longantai_v3_嗲甜台湾女.mp3",
+    "浪漫风情女": "longqiang_v3_浪漫风情女.mp3",
+    "豪放可爱女": "longxian_v3_豪放可爱女.mp3",
+    "暖心甜美女": "longhua_v3_元气甜美女.mp3",
+    "阳光自然女": "Cherry_阳光自然女.wav",
+    "沉稳男声": "Neil_新闻主播（沉稳男声）.wav",
+    "温暖元气男": "longze_v2_温暖元气男.mp3",
+    "睿智青年男": "longnan_v2_睿智青年男.mp3",
+    "清朗明快男": "Ethan_清朗明快男.wav",
+    "阳光大男孩": "longanyang_阳光大男孩.mp3",
+}
+
+
+def generate_shot_dubbing(text, shot_index, narrator_voice="温柔女声"):
     """
     为单个分镜生成配音。
     只需要一个讲述人（旁白）角色，把分镜描述念出来。
-    
+
     参数:
         text: 要朗读的文本（分镜的 description 或 prompt）
         shot_index: 分镜序号（用于文件名）
-        narrator_voice_note: 旁白角色标签，用于筛选声线
-        
-    返回: mp3 文件名（相对于 COMFYUI_OUTPUT_DIR），或 None
+        narrator_voice: 叙事人声名称（如："温柔女声""沉稳男声"等）
+
+    返回: mp3 文件名（相对于 OUTPUT_DIR），或 None
     """
     if not text or not text.strip():
         print(f"[错误] 分镜 {shot_index} 没有配音文本")
         return None
-    
+
     # 清理文本
     clean_text = clean_text_for_tts(text)
     print(f"\n🎙️ 正在为分镜 {shot_index} 生成配音...")
+    print(f"   叙事人声: {narrator_voice}")
     print(f"   文本: {clean_text[:80]}...")
-    
-    # 分配旁白声线
-    narrator_file = assign_voice("旁白", "female", narrator_voice_note, "中文普通话")
-    
+
+    # 根据叙事人声映射表获取声线文件
+    if narrator_voice in NARRATOR_VOICE_MAP:
+        voice_filename = NARRATOR_VOICE_MAP[narrator_voice]
+        # 判断文件在哪个目录
+        voice_dir = "girls" if voice_filename in [f.rsplit('/', 1)[-1] for f in RAW_GIRL_FILES] else "man"
+        # 从文件名找出完整路径
+        for f in RAW_GIRL_FILES:
+            if voice_filename in f or f.endswith(voice_filename):
+                narrator_file = f"girls/{f}" if not f.startswith("girls/") else f
+                break
+        else:
+            for f in RAW_MAN_FILES:
+                if voice_filename in f or f.endswith(voice_filename):
+                    narrator_file = f"man/{f}" if not f.startswith("man/") else f
+                    break
+            else:
+                # 按原始关键词匹配回退
+                is_male = any(kw in narrator_voice for kw in ["男声", "男", "元气男", "大男孩", "青年男", "明快男"])
+                narrator_file = assign_voice("旁白", "male" if is_male else "female", narrator_voice, "中文普通话")
+                print(f"   ⚠️ 未找到精确映射，使用关键词匹配: {narrator_file}")
+    else:
+        # 回退到关键词匹配
+        is_male = any(kw in narrator_voice for kw in ["男声", "男", "元气男", "大男孩", "青年男", "明快男"])
+        narrator_file = assign_voice("旁白", "male" if is_male else "female", narrator_voice, "中文普通话")
+        print(f"   ⚠️ 叙事人声 '{narrator_voice}' 不在映射表中，使用关键词匹配: {narrator_file}")
+
     # 构建单角色 prompt
     dialog_text = f"SPEAKER A: {clean_text}"
-    
+
     prompt = {
         "10": {
             "class_type": "FL_CosyVoice3_ModelLoader",
@@ -609,7 +655,7 @@ def generate_shot_dubbing(text, shot_index, narrator_voice_note="旁白"):
         }
     }
 
-    
+
     # 加载旁白音频
     prompt["100"] = {"class_type": "LoadAudio", "inputs": {"audio": narrator_file}}
     prompt["200"] = {
@@ -618,12 +664,12 @@ def generate_shot_dubbing(text, shot_index, narrator_voice_note="旁白"):
     }
     prompt["20"]["inputs"]["speaker_A_Audio"] = ["200", 0]
     prompt["20"]["inputs"]["speaker_B_Audio"] = ["200", 0]  # 填同样的避免校验失败
-    
+
     # 提交并等待
     try:
         outputs = wait_for_completion(submit_prompt(prompt))
         files = [convert_to_mp3(f) for f in collect_audio_files(outputs)]
-        
+
         if files:
             # 拷贝到故事目录
             os.makedirs(OUTPUT_DIR, exist_ok=True)
