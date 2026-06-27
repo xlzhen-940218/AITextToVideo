@@ -1179,13 +1179,24 @@ def _run_batch_generate(story_text, art_style, target_shots=None):
     for idx, shot_data in enumerate(all_shots, 1):
         si = shot_data["shot_index"]
         image_files = project_state.get("generated_images", {}).get(si, [])
-        if not image_files:
-            print(f"  🎬 分镜 {si} 无图片，跳过")
-            continue
+        
+        # 首尾帧相连模式：非首镜不需要图片文件（使用上一分镜视频尾帧）
+        if use_frame_connection:
+            current_idx = shot_indices.index(si) if si in shot_indices else -1
+            is_first_shot = (current_idx <= 0)
+        else:
+            is_first_shot = True  # 非首尾帧模式，所有分镜都需要图片
+        
+        # 普通模式或首尾帧模式的首镜 — 必须要有图片
+        if (not use_frame_connection) or is_first_shot:
+            if not image_files:
+                print(f"  🎬 分镜 {si} 无图片，跳过")
+                continue
+        
         print(f"  🎬 分镜 {si} ({idx}/{len(all_shots)})...", end="", flush=True)
 
         prompt_text = shot_data.get("prompt", "")
-        image_filename = image_files[0]
+        image_filename = image_files[0] if image_files else ""
         v_width = project_state.get("video_width", DEFAULT_VIDEO_WIDTH)
         v_height = project_state.get("video_height", DEFAULT_VIDEO_HEIGHT)
         v_fps = project_state.get("fps", DEFAULT_FPS)
@@ -1214,11 +1225,15 @@ def _run_batch_generate(story_text, art_style, target_shots=None):
                             image_path = frame_path
                             print(f"  🎬 分镜 {si}：使用分镜 {prev_shot_index} 视频尾帧")
                         else:
-                            image_path = os.path.join(OUTPUT_DIR, image_filename)
-                            print(f"  ⚠️ 分镜 {si}：尾帧提取失败，回退到原始图片")
+                            print(f"  ⚠️ 分镜 {si}：尾帧提取失败，使用第一张图片")
+                            image_path = os.path.join(OUTPUT_DIR, image_filename) if image_files else None
                     else:
-                        image_path = os.path.join(OUTPUT_DIR, image_filename)
-                        print(f"  ⚠️ 分镜 {si}：上一个分镜无视频，使用原始图片")
+                        print(f"  ⚠️ 分镜 {si}：上一个分镜无视频")
+                        image_path = os.path.join(OUTPUT_DIR, image_filename) if image_files else None
+                    
+                    if not image_path or not os.path.exists(image_path):
+                        print(f" ❌ 无可用输入图片")
+                        continue
 
                 video_files = generate_video(
                     image_path=image_path, prompt_text=prompt_text, seed=v_seed,
@@ -1226,7 +1241,10 @@ def _run_batch_generate(story_text, art_style, target_shots=None):
                 )
             else:
                 # 普通模式：每个分镜使用其本身的图片
-                image_path = os.path.join(OUTPUT_DIR, image_filename)
+                image_path = os.path.join(OUTPUT_DIR, image_filename) if image_files else None
+                if not image_path or not os.path.exists(image_path):
+                    print(f" ❌ 无可用输入图片")
+                    continue
                 video_files = generate_video(
                     image_path=image_path, prompt_text=prompt_text, seed=v_seed,
                     width=v_width, height=v_height, duration=DEFAULT_DURATION, fps=v_fps, enable_turbo=True,
