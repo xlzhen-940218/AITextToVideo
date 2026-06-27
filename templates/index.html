@@ -251,6 +251,8 @@
     .gen-toolbar .btn { justify-content: center; }
     .gen-toolbar .divider { width: 100%; height: 1px; }
   }
+  .shot-preview video { max-width: 100%; max-height: 180px; border-radius: 6px; border: 1px solid var(--border); background: #000; }
+  #final-video-area video { width: 100%; border-radius: 10px; border: 1px solid var(--border); background: #000; }
 </style>
 </head>
 <body>
@@ -600,14 +602,28 @@ async function doBatchGenerateImages() {
     document.getElementById('batch-total').textContent = total;
   }
 
-  document.getElementById('batch-bar').style.width = '100%';
-  document.getElementById('batch-phase').textContent = `✅ 所有图片生成任务已启动（跳过 ${skipped} 个已有图片的分镜）`;
-  toast(`🖼️ 所有分镜图片生成任务已提交（跳过 ${skipped} 个已有图片的分镜）`, 'success');
   startPolling();
 
-  setTimeout(() => {
-    document.getElementById('batch-progress-card').style.display = 'none';
-  }, 5000);
+  // 持续轮询直到所有图片就绪
+  const imgCheck = setInterval(async () => {
+    try {
+      const s = await apiCall('GET', '/generate/status');
+      const entries = Object.entries(s);
+      const allImgDone = entries.every(([_, v]) => v.has_image);
+      const imgDone = entries.filter(([_, v]) => v.has_image).length;
+      document.getElementById('batch-img').textContent = imgDone;
+      document.getElementById('batch-total').textContent = total;
+      document.getElementById('batch-bar').style.width = (imgDone / total * 100) + '%';
+      document.getElementById('batch-phase').textContent = `🖼️ 正在生成图片... ${imgDone}/${total}`;
+      if (allImgDone) {
+        clearInterval(imgCheck);
+        document.getElementById('batch-phase').textContent = '✅ 所有图片生成完成';
+        setTimeout(() => {
+          document.getElementById('batch-progress-card').style.display = 'none';
+        }, 5000);
+      }
+    } catch(e) { /* ignore */ }
+  }, 3000);
 }
 
 // ================= 批量生成视频 =================
@@ -662,14 +678,28 @@ async function doBatchGenerateVideos() {
     document.getElementById('batch-total2').textContent = total;
   }
 
-  document.getElementById('batch-bar').style.width = '100%';
-  document.getElementById('batch-phase').textContent = `✅ 所有视频生成任务已启动（跳过 ${skipped} 个没有图片或已有视频的分镜）`;
-  toast(`🎬 所有分镜视频生成任务已提交`, 'success');
   startPolling();
 
-  setTimeout(() => {
-    document.getElementById('batch-progress-card').style.display = 'none';
-  }, 5000);
+  // 持续轮询直到所有视频就绪
+  const vidCheck = setInterval(async () => {
+    try {
+      const s = await apiCall('GET', '/generate/status');
+      const entries = Object.entries(s);
+      const allVidDone = entries.every(([_, v]) => v.has_video);
+      const vidDone = entries.filter(([_, v]) => v.has_video).length;
+      document.getElementById('batch-vid').textContent = vidDone;
+      document.getElementById('batch-total2').textContent = total;
+      document.getElementById('batch-bar').style.width = (vidDone / total * 100) + '%';
+      document.getElementById('batch-phase').textContent = `🎬 正在生成视频... ${vidDone}/${total}`;
+      if (allVidDone) {
+        clearInterval(vidCheck);
+        document.getElementById('batch-phase').textContent = '✅ 所有视频生成完成';
+        setTimeout(() => {
+          document.getElementById('batch-progress-card').style.display = 'none';
+        }, 5000);
+      }
+    } catch(e) { /* ignore */ }
+  }, 3000);
 }
 
 // ================= 批量生成配音 =================
@@ -704,14 +734,28 @@ async function doBatchGenerateDubbings() {
     document.getElementById('batch-total3').textContent = total;
   }
 
-  document.getElementById('batch-bar').style.width = '100%';
-  document.getElementById('batch-phase').textContent = `✅ 所有配音生成任务已启动（跳过 ${skipped} 个已有配音的分镜）`;
-  toast('🎙️ 所有分镜配音生成任务已提交', 'success');
   startPolling();
 
-  setTimeout(() => {
-    document.getElementById('batch-progress-card').style.display = 'none';
-  }, 5000);
+  // 持续轮询直到所有配音就绪
+  const dubCheck = setInterval(async () => {
+    try {
+      const s = await apiCall('GET', '/generate/status');
+      const entries = Object.entries(s);
+      const allDubDone = entries.every(([_, v]) => v.has_dubbing);
+      const dubDone = entries.filter(([_, v]) => v.has_dubbing).length;
+      document.getElementById('batch-dub').textContent = dubDone;
+      document.getElementById('batch-total3').textContent = total;
+      document.getElementById('batch-bar').style.width = (dubDone / total * 100) + '%';
+      document.getElementById('batch-phase').textContent = `🎙️ 正在生成配音... ${dubDone}/${total}`;
+      if (allDubDone) {
+        clearInterval(dubCheck);
+        document.getElementById('batch-phase').textContent = '✅ 所有配音生成完成';
+        setTimeout(() => {
+          document.getElementById('batch-progress-card').style.display = 'none';
+        }, 5000);
+      }
+    } catch(e) { /* ignore */ }
+  }, 3000);
 }
 
 // ================= 批量状态轮询 =================
@@ -997,13 +1041,30 @@ async function doMergeAll() {
   const btn = document.querySelector('#final-merge-area button');
   if (btn) btn.disabled = true;
   toast('⏳ 正在合成完整视频，请稍候...', 'info');
+
+  // 显示进度卡片
+  document.getElementById('batch-progress-card').style.display = 'block';
+  document.getElementById('batch-phase').textContent = '🔗 正在合并各分镜音视频...';
+  document.getElementById('batch-bar').style.width = '10%';
+
   try {
     await apiCall('POST', '/merge/all');
     const interval = setInterval(async () => {
       try {
         const s = await apiCall('GET', '/merge/status');
+        const total = Object.keys(s).filter(k => k !== 'final').length;
+        const merged = Object.values(s).filter(v => v.has_merged).length;
+        document.getElementById('batch-bar').style.width = total > 0 ? (merged / total * 80 + 10) + '%' : '10%';
+        document.getElementById('batch-merge').textContent = merged;
+        document.getElementById('batch-total4').textContent = total;
+        document.getElementById('batch-phase').textContent = merged > 0
+          ? `🔗 正在合并音视频... ${merged}/${total}`
+          : '🔗 正在等待各分镜素材就绪...';
+
         if (s.final) {
           clearInterval(interval);
+          document.getElementById('batch-bar').style.width = '100%';
+          document.getElementById('batch-phase').textContent = '🎉 完整视频合成完成！';
           toast('🎉 完整 AI 视频生成完成！', 'success');
           const area = document.getElementById('final-video-area');
           area.style.display = 'block';
@@ -1012,11 +1073,15 @@ async function doMergeAll() {
           video.play().catch(() => {});
           if (btn) btn.disabled = false;
           await refreshShots();
+          setTimeout(() => {
+            document.getElementById('batch-progress-card').style.display = 'none';
+          }, 5000);
         }
       } catch(e) { /* ignore */ }
     }, 3000);
   } catch (e) {
     toast('❌ 合成失败: ' + e.message, 'error');
+    document.getElementById('batch-phase').textContent = '❌ 合成失败';
     if (btn) btn.disabled = false;
   }
 }

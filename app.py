@@ -76,7 +76,7 @@ DUBBING_MAX_SECONDS = get("video_processing.dubbing_max_seconds", 10)
 
 # ================= 艺术风格预设 =================
 ART_STYLES = [
-    {"value": "迪士尼风格, 细腻光影, 高品质渲染, 4K", "label": "🎨 迪士尼风格（默认）"},
+    {"value": "Disney style, exquisite lighting and shadows, high-quality rendering, 3D graphics, 4K resolution.", "label": "🎨 迪士尼风格（默认）"},
     # 一、传统美术与绘画流派
     {"value": "Oil painting, impasto, rich colors, brush strokes, 4K", "label": "🖼️ 油画风格"},
     {"value": "Watercolor painting, wet-on-wet, soft edges, transparent, splatter, 4K", "label": "🖼️ 水彩风格"},
@@ -697,7 +697,7 @@ def analyze_story():
     """分析故事，生成分镜列表"""
     data = request.get_json(silent=True) or {}
     story_text = data.get("text", "")
-    art_style = data.get("style", "迪士尼风格, 细腻光影, 高品质渲染, 4K")
+    art_style = data.get("style", "Disney style, exquisite lighting and shadows, high-quality rendering, 3D graphics, 4K resolution.")
     target_shots = data.get("shots", None)
 
     if not story_text:
@@ -1011,6 +1011,34 @@ def _run_merge_all():
     with state_lock:
         shots = list(project_state["shots"])
         existing_merged = dict(project_state.get("merged_videos", {}))
+        # 标记合并进行中
+        project_state["merge_in_progress"] = True
+
+    # ========== 等待所有分镜的配音和视频就绪（最多等 10 分钟） ==========
+    print("⏳ 等待所有分镜配音和视频完成...")
+    max_wait = 600  # 10 分钟
+    waited = 0
+    while waited < max_wait:
+        with state_lock:
+            dubbings = dict(project_state.get("shot_dubbing", {}))
+            videos = dict(project_state.get("generated_videos", {}))
+        pending_dub = [s["shot_index"] for s in shots if s["shot_index"] not in dubbings]
+        pending_vid = [s["shot_index"] for s in shots if s["shot_index"] not in videos]
+        if not pending_dub and not pending_vid:
+            print("✅ 所有分镜配音和视频已就绪")
+            break
+        if waited % 30 == 0 or waited == 0:
+            if pending_dub:
+                print(f"  等待配音: 分镜 {pending_dub}")
+            if pending_vid:
+                print(f"  等待视频: 分镜 {pending_vid}")
+        time.sleep(5)
+        waited += 5
+
+    if waited >= max_wait:
+        print("⚠️ 等待超时，使用已就绪的数据进行合并")
+
+    # ========== 逐步合并每个分镜 ==========
     for shot in shots:
         idx = shot["shot_index"]
         if idx not in existing_merged:
@@ -1025,7 +1053,12 @@ def _run_merge_all():
     if final:
         with state_lock:
             project_state["final_video"] = final
+            project_state["merge_in_progress"] = False
         print(f"🎉 完整 AI 视频生成完成: {final}")
+    else:
+        with state_lock:
+            project_state["merge_in_progress"] = False
+        print("❌ 完整 AI 视频合并失败")
 
 
 @app.route('/api/merge/status', methods=['GET'])
@@ -1034,14 +1067,22 @@ def merge_status():
         merged = dict(project_state.get("merged_videos", {}))
         final = project_state.get("final_video")
         shots = project_state["shots"]
+        merge_in_progress = project_state.get("merge_in_progress", False)
+        images = dict(project_state.get("generated_images", {}))
+        videos = dict(project_state.get("generated_videos", {}))
+        dubbings = dict(project_state.get("shot_dubbing", {}))
     result = {}
     for shot in shots:
         idx = shot["shot_index"]
         result[str(idx)] = {  # 用字符串键避免 JSON 排序时 int/str 混合类型错误
             "has_merged": idx in merged,
             "merged_file": merged.get(idx, None),
+            "has_image": idx in images,
+            "has_video": idx in videos,
+            "has_dubbing": idx in dubbings,
         }
     result["final"] = final if final and os.path.exists(os.path.join(OUTPUT_DIR, final)) else None
+    result["merge_in_progress"] = merge_in_progress
     return jsonify(result)
 
 
@@ -1339,7 +1380,7 @@ def batch_generate():
     """一键生成全部：分析→图片→视频→配音→合并→最终合并"""
     data = request.get_json(silent=True) or {}
     story_text = data.get("text", "")
-    art_style = data.get("style", project_state.get("art_style", "迪士尼风格, 细腻光影, 高品质渲染, 4K"))
+    art_style = data.get("style", project_state.get("art_style", "Disney style, exquisite lighting and shadows, high-quality rendering, 3D graphics, 4K resolution."))
     target_shots = data.get("shots", None)
 
     if not story_text:
